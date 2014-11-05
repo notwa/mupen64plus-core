@@ -10,6 +10,8 @@ int m64p_lua_init() {
 		DebugMessage(M64MSG_INFO, "Lua version is: %s",
 			lua_tostring(g_luaState, -1));
 		lua_pop(g_luaState, 1);
+
+		m64p_lua_load_libs(g_luaState);
 		return 1;
 	}
 	else {
@@ -19,6 +21,64 @@ int m64p_lua_init() {
 		g_luaState = NULL;
 		return 0;
 	}
+}
+
+
+int m64p_lua_return_errcode(lua_State *L, m64p_error err) {
+	const char *str = "Unknown error";
+	switch(err) {
+		case M64ERR_SUCCESS:
+			lua_pushboolean(L, 1);
+			return 1;
+
+		case M64ERR_NOT_INIT:
+			str = "Not initialized";
+			break;
+		case M64ERR_ALREADY_INIT:
+			str = "Already initialized";
+			break;
+		case M64ERR_INCOMPATIBLE:
+			str = "Incompatible API version";
+			break;
+		case M64ERR_INPUT_ASSERT:
+			str = "Invalid parameter";
+			break;
+		case M64ERR_INPUT_INVALID:
+			str = "Invalid parameter value";
+			break;
+		case M64ERR_INPUT_NOT_FOUND:
+			str = "Item not found";
+			break;
+		case M64ERR_NO_MEMORY:
+			str = "Out of memory";
+			break;
+		case M64ERR_FILES:
+			str = "I/O error";
+			break;
+		case M64ERR_INTERNAL:
+			str = "Internal error";
+			break;
+		case M64ERR_INVALID_STATE:
+			str = "Operation not valid in current state";
+			break;
+		case M64ERR_PLUGIN_FAIL:
+			str = "Plugin operation failed";
+			break;
+		case M64ERR_SYSTEM_FAIL:
+			str = "System operation failed";
+			break;
+		case M64ERR_UNSUPPORTED:
+			str = "Operation not supported";
+			break;
+		case M64ERR_WRONG_TYPE:
+			str = "Incorrect parameter type";
+			break;
+	}
+
+	lua_pushnil(L);
+	lua_pushstring(L, str);
+	lua_pushinteger(L, err);
+	return 3;
 }
 
 

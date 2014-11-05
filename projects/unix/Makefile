@@ -431,7 +431,8 @@ endif
 
 ifeq ($(LUA), 1)
 	SOURCE += \
-	$(SRCDIR)/lua/lua.c
+	$(SRCDIR)/lua/lua.c \
+	$(SRCDIR)/lua/m64p_lualib.c
 endif
 
 # source files for optional features
