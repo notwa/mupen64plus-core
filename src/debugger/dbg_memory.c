@@ -34,7 +34,7 @@
 #include "r4300/ops.h"
 #include "r4300/tlb.h"
 #include "main/rom.h"
- 
+
 /* Following are the breakpoint functions for memory access calls.  See debugger/memory.h
  * These macros generate the memory breakpoint function calls.*/
 MEMBREAKALL_local(nothing);
@@ -101,7 +101,7 @@ static void process_opcode_out(void *strm, const char *fmt, ...){
   va_start(ap, fmt);
   char *arg;
   char buff[256];
-  
+
   if(num_decoded==0)
     {
       if(strcmp(fmt,"%s")==0)
@@ -117,19 +117,19 @@ static void process_opcode_out(void *strm, const char *fmt, ...){
   else
     {
       vsprintf(buff, fmt, ap);
-      sprintf(args_recompiled[lines_recompiled],"%s%s", 
+      sprintf(args_recompiled[lines_recompiled],"%s%s",
           args_recompiled[lines_recompiled],buff);
     }
   va_end(ap);
 }
 
-// Callback function that will be called by libopcodes to read the 
+// Callback function that will be called by libopcodes to read the
 // bytes to disassemble ('read_memory_func' member of 'disassemble_info').
-static int read_memory_func(bfd_vma memaddr, bfd_byte *myaddr, 
+static int read_memory_func(bfd_vma memaddr, bfd_byte *myaddr,
                             unsigned int length, disassemble_info *info) {
   char* from = (char*)(long)(memaddr);
   char* to =   (char*)myaddr;
-  
+
   while (length-- != 0) {
     *to++ = *from++;
   }
@@ -169,7 +169,7 @@ static void decode_recompiled(uint32 addr)
     return;
       }
 
-    assemb = (blocks[addr>>12]->code) + 
+    assemb = (blocks[addr>>12]->code) +
       (blocks[addr>>12]->block[(addr&0xFFF)/4].local_addr);
 
     end_addr = blocks[addr>>12]->code;
@@ -240,7 +240,7 @@ int get_has_recompiled(uint32 addr)
     if(r4300emu != CORE_DYNAREC || blocks[addr>>12] == NULL)
         return FALSE;
 
-    assemb = (blocks[addr>>12]->code) + 
+    assemb = (blocks[addr>>12]->code) +
       (blocks[addr>>12]->block[(addr&0xFFF)/4].local_addr);
 
     end_addr = blocks[addr>>12]->code;
@@ -299,7 +299,7 @@ uint64 read_memory_64(uint32 addr)
 uint64 read_memory_64_unaligned(uint32 addr)
 {
     uint64 w[2];
-    
+
     w[0] = read_memory_32_unaligned(addr);
     w[1] = read_memory_32_unaligned(addr + 4);
     return (w[0] << 32) | w[1];
@@ -394,7 +394,7 @@ uint32 read_memory_32(uint32 addr){
 uint32 read_memory_32_unaligned(uint32 addr)
 {
     uint8 i, b[4];
-    
+
     for(i=0; i<4; i++) b[i] = read_memory_8(addr + i);
     return (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
 }
@@ -421,7 +421,8 @@ void write_memory_32_unaligned(uint32 addr, uint32 value)
 //read_memory_16 and write_memory_16 work unaligned already.
 uint16 read_memory_16(uint32 addr)
 {
-    return ((uint16)read_memory_8(addr) << 8) | (uint16)read_memory_8(addr+1); //cough cough hack hack
+    return ((uint16)read_memory_8(addr) << 8) |
+		(uint16)read_memory_8(addr+1); //cough cough hack hack
 }
 
 void write_memory_16(uint32 addr, uint16 value)
@@ -433,7 +434,7 @@ void write_memory_16(uint32 addr, uint16 value)
 uint8 read_memory_8(uint32 addr)
 {
     uint32 word;
-    
+
     word = read_memory_32(addr & ~3);
     return (word >> ((3 - (addr & 3)) * 8)) & 0xFF;
 }
@@ -441,7 +442,7 @@ uint8 read_memory_8(uint32 addr)
 void write_memory_8(uint32 addr, uint8 value)
 {
     uint32 word, mask;
-    
+
     word = read_memory_32(addr & ~3);
     mask = 0xFF << ((3 - (addr & 3)) * 8);
     word = (word & ~mask) | (value << ((3 - (addr & 3)) * 8));

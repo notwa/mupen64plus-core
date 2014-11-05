@@ -24,6 +24,7 @@
 #define __DEBUGGER_MEMORY_H__
 
 #define MAX_DISASSEMBLY 64
+#include "dbg_types.h"
 
 /* The following three macros create all the function calls for catching memory breakpoints
  * these do not occur until after the PC is incremented, but jumps & branches are not yet taken.
