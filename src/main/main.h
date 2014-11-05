@@ -30,6 +30,9 @@ extern m64p_handle g_CoreConfig;
 
 extern int g_MemHasBeenBSwapped;
 extern int g_EmulatorRunning;
+#ifdef WITH_LUA
+#	include "lua/lua.h"
+#endif
 
 extern m64p_frame_callback g_FrameCallback;
 

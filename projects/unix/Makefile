@@ -313,11 +313,11 @@ endif
 # 2. variables for profiling and adding debugging symbols
 ifeq ($(PROFILE), 1)
   CFLAGS += -pg -g
-  INSTALL_STRIP_FLAG ?= 
+  INSTALL_STRIP_FLAG ?=
 else
   ifeq ($(DEBUG), 1)
     CFLAGS += -g
-    INSTALL_STRIP_FLAG ?= 
+    INSTALL_STRIP_FLAG ?=
   else
     ifneq ($(OS),OSX)
       INSTALL_STRIP_FLAG ?= -s
@@ -350,6 +350,10 @@ endif
 # 4. compile-time directory paths for building into the library
 ifneq ($(SHAREDIR),)
   CFLAGS += -DSHAREDIR="$(SHAREDIR)"
+endif
+ifeq ($(LUA), 1)
+  CFLAGS += -DWITH_LUA
+  LDLIBS += -llua
 endif
 
 # set installation options
@@ -423,6 +427,11 @@ ifeq ($(OSD), 1)
 SOURCE += \
 	$(SRCDIR)/osd/OGLFT.cpp \
 	$(SRCDIR)/osd/osd.cpp
+endif
+
+ifeq ($(LUA), 1)
+	SOURCE += \
+	$(SRCDIR)/lua/lua.c
 endif
 
 # source files for optional features
@@ -531,6 +540,7 @@ targets:
 	@echo "    WARNFLAGS=flag == compiler warning levels (default: -Wall)"
 	@echo "    PIC=(1|0)     == Force enable/disable of position independent code"
 	@echo "    OSD=(1|0)     == Enable/disable build of OpenGL On-screen display"
+	@echo "    LUA=(1|0)     == Enable/disable Lua scripting support"
 	@echo "    NEW_DYNAREC=1 == Replace dynamic recompiler with Ari64's experimental dynarec"
 	@echo "    POSTFIX=name  == String added to the name of the the build (default: '')"
 	@echo "  Install Options:"

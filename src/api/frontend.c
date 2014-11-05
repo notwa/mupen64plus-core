@@ -19,7 +19,7 @@
  *   Free Software Foundation, Inc.,                                       *
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-                       
+
 /* This file contains the Core front-end functions which will be exported
  * outside of the core library.
  */
@@ -96,6 +96,10 @@ EXPORT m64p_error CALL CoreStartup(int APIVersion, const char *ConfigPath, const
 
     workqueue_init();
 
+#ifdef WITH_LUA
+	m64p_lua_init();
+#endif //WITH_LUA
+
     l_CoreInit = 1;
     return M64ERR_SUCCESS;
 }
@@ -160,7 +164,8 @@ EXPORT m64p_error CALL CoreDoCommand(m64p_command Command, int ParamInt, void *P
     {
         case M64CMD_NOP:
             return M64ERR_SUCCESS;
-        case M64CMD_ROM_OPEN:
+
+		case M64CMD_ROM_OPEN:
             if (g_EmulatorRunning || l_ROMOpen)
                 return M64ERR_INVALID_STATE;
             if (ParamPtr == NULL || ParamInt < 4096)
@@ -173,14 +178,16 @@ EXPORT m64p_error CALL CoreDoCommand(m64p_command Command, int ParamInt, void *P
                 cheat_init();
             }
             return rval;
-        case M64CMD_ROM_CLOSE:
+
+		case M64CMD_ROM_CLOSE:
             if (g_EmulatorRunning || !l_ROMOpen)
                 return M64ERR_INVALID_STATE;
             l_ROMOpen = 0;
             cheat_delete_all();
             cheat_uninit();
             return close_rom();
-        case M64CMD_ROM_GET_HEADER:
+
+		case M64CMD_ROM_GET_HEADER:
             if (!l_ROMOpen)
                 return M64ERR_INVALID_STATE;
             if (ParamPtr == NULL)
@@ -196,7 +203,8 @@ EXPORT m64p_error CALL CoreDoCommand(m64p_command Command, int ParamInt, void *P
                 memcpy((char *)ParamPtr + 0x20, ROM_PARAMS.headername, size);
             }
             return M64ERR_SUCCESS;
-        case M64CMD_ROM_GET_SETTINGS:
+
+		case M64CMD_ROM_GET_SETTINGS:
             if (!l_ROMOpen)
                 return M64ERR_INVALID_STATE;
             if (ParamPtr == NULL)
@@ -205,7 +213,8 @@ EXPORT m64p_error CALL CoreDoCommand(m64p_command Command, int ParamInt, void *P
                 ParamInt = sizeof(m64p_rom_settings);
             memcpy(ParamPtr, &ROM_SETTINGS, ParamInt);
             return M64ERR_SUCCESS;
-        case M64CMD_EXECUTE:
+
+		case M64CMD_EXECUTE:
             if (g_EmulatorRunning || !l_ROMOpen)
                 return M64ERR_INVALID_STATE;
             /* print out plugin-related warning messages */
@@ -213,66 +222,79 @@ EXPORT m64p_error CALL CoreDoCommand(m64p_command Command, int ParamInt, void *P
             /* the main_run() function will not return until the player has quit the game */
             rval = main_run();
             return rval;
-        case M64CMD_STOP:
+
+		case M64CMD_STOP:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             /* this stop function is asynchronous.  The emulator may not terminate until later */
             return main_core_state_set(M64CORE_EMU_STATE, M64EMU_STOPPED);
-        case M64CMD_PAUSE:
+
+		case M64CMD_PAUSE:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             return main_core_state_set(M64CORE_EMU_STATE, M64EMU_PAUSED);
-        case M64CMD_RESUME:
+
+		case M64CMD_RESUME:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             return main_core_state_set(M64CORE_EMU_STATE, M64EMU_RUNNING);
-        case M64CMD_CORE_STATE_QUERY:
+
+		case M64CMD_CORE_STATE_QUERY:
             if (ParamPtr == NULL)
                 return M64ERR_INPUT_ASSERT;
             return main_core_state_query((m64p_core_param) ParamInt, (int *) ParamPtr);
-        case M64CMD_CORE_STATE_SET:
+
+		case M64CMD_CORE_STATE_SET:
             if (ParamPtr == NULL)
                 return M64ERR_INPUT_ASSERT;
             return main_core_state_set((m64p_core_param) ParamInt, *((int *)ParamPtr));
-        case M64CMD_STATE_LOAD:
+
+		case M64CMD_STATE_LOAD:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             main_state_load((char *) ParamPtr);
             return M64ERR_SUCCESS;
-        case M64CMD_STATE_SAVE:
+
+		case M64CMD_STATE_SAVE:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             if (ParamPtr != NULL && (ParamInt < 1 || ParamInt > 3))
                 return M64ERR_INPUT_INVALID;
             main_state_save(ParamInt, (char *) ParamPtr);
             return M64ERR_SUCCESS;
-        case M64CMD_STATE_SET_SLOT:
+
+		case M64CMD_STATE_SET_SLOT:
             if (ParamInt < 0 || ParamInt > 9)
                 return M64ERR_INPUT_INVALID;
             return main_core_state_set(M64CORE_SAVESTATE_SLOT, ParamInt);
-        case M64CMD_SEND_SDL_KEYDOWN:
+
+		case M64CMD_SEND_SDL_KEYDOWN:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             keysym = ParamInt & 0xffff;
             keymod = (ParamInt >> 16) & 0xffff;
             event_sdl_keydown(keysym, keymod);
             return M64ERR_SUCCESS;
-        case M64CMD_SEND_SDL_KEYUP:
+
+		case M64CMD_SEND_SDL_KEYUP:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             keysym = ParamInt & 0xffff;
             keymod = (ParamInt >> 16) & 0xffff;
             event_sdl_keyup(keysym, keymod);
             return M64ERR_SUCCESS;
-        case M64CMD_SET_FRAME_CALLBACK:
+
+		case M64CMD_SET_FRAME_CALLBACK:
             g_FrameCallback = (m64p_frame_callback) ParamPtr;
             return M64ERR_SUCCESS;
-        case M64CMD_TAKE_NEXT_SCREENSHOT:
+
+		case M64CMD_TAKE_NEXT_SCREENSHOT:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             main_take_next_screenshot();
             return M64ERR_SUCCESS;
-        case M64CMD_READ_SCREEN:
+
+		case M64CMD_READ_SCREEN:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             if (ParamPtr == NULL)
@@ -280,18 +302,24 @@ EXPORT m64p_error CALL CoreDoCommand(m64p_command Command, int ParamInt, void *P
             if (ParamInt < 0 || ParamInt > 1)
                 return M64ERR_INPUT_INVALID;
             return main_read_screen(ParamPtr, ParamInt);
-        case M64CMD_RESET:
+
+		case M64CMD_RESET:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             if (ParamInt < 0 || ParamInt > 1)
                 return M64ERR_INPUT_INVALID;
             return main_reset(ParamInt);
-        case M64CMD_ADVANCE_FRAME:
+
+		case M64CMD_ADVANCE_FRAME:
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             main_advance_one();
             return M64ERR_SUCCESS;
-        default:
+
+		case M64CMD_LOAD_SCRIPT:
+			return m64p_lua_load_script((const char*)ParamPtr);
+
+		default:
             return M64ERR_INPUT_INVALID;
     }
 
