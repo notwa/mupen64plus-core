@@ -125,18 +125,48 @@ static int emu_register_callback(lua_State *L) {
 	//-1: callbacks tbl
 
 	//scan this table until we find an empty slot
-	int i=0;
-	while(1) {
+	int i=0, done=0;
+	while(!done) {
 		lua_rawgeti(L, -1, ++i); //-1: slot, -2: tbl
-		if(!lua_isfunction(L, -1)) break;
+		if(!lua_isfunction(L, -1)) done = 1;
+		lua_pop(L, 1); //-1: tbl
 	}
 
-	lua_pop(L, 1); //-1: tbl
 	lua_pushvalue(L, 2); //-1: func, -2: tbl
 	lua_rawseti(L, -2, i); //-1: tbl
 	lua_pop(L, 1); //remove tbl
 
 	lua_pushboolean(L, 1);
+	return 1;
+}
+
+static int emu_unregister_callback(lua_State *L) {
+	luaL_checktype(L, 2, LUA_TFUNCTION);
+
+	char tname[256];
+	const char *name = luaL_checkstring(L, 1);
+	snprintf(tname, sizeof(tname), "%s_callbacks", name);
+
+	lua_getfield(L, LUA_REGISTRYINDEX, tname);
+	if(!lua_istable(L, -1)) return luaL_error(L, "Invalid callback ID");
+	//-1: callbacks tbl
+
+	//scan this table until we find the given function.
+	int i=0, done=0, found=0;
+	while(!done) {
+		lua_rawgeti(L, -1, ++i); //-1: slot, -2: tbl
+		if(lua_isnil(L, -1)) done = 1;
+		else if(lua_compare(L, -1, 2, LUA_OPEQ)) { //value == arg2
+			//replace with a non-function, non-nil value.
+			lua_pushboolean(L, 0); //-1: false, -2: slot, -3: tbl
+			lua_rawseti(L, -3, i); //-1: slot, -2: tbl
+			found = 1; done = 1;
+		}
+		lua_pop(L, 1); //-1: tbl
+	}
+
+	lua_pop(L, 1); //remove tbl
+	lua_pushboolean(L, found);
 	return 1;
 }
 
@@ -182,11 +212,12 @@ void m64p_lua_load_libs(lua_State *L) {
 
 	//global m64p table
 	static const luaL_Reg funcs_m64p[] = {
-		{"run",              emu_run},
-		{"stop",             emu_stop},
-		{"pause",            emu_pause},
-		{"resume",           emu_resume},
-		{"registerCallback", emu_register_callback},
+		{"run",                emu_run},
+		{"stop",               emu_stop},
+		{"pause",              emu_pause},
+		{"resume",             emu_resume},
+		{"registerCallback",   emu_register_callback},
+		{"unregisterCallback", emu_unregister_callback},
 		{NULL, NULL}
 	};
 	luaL_newlib(L, funcs_m64p); //-1: m64p
