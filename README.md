@@ -1,3 +1,26 @@
+Mupen64Plus, now with Lua 5.3
+-----------------------------
+
+This is a fork of Mupen64Plus that adds Lua scripting support.
+Right now, it can't do much, but eventually it should be possible to implement
+things such as frontend UIs, advanced debugging/cheating/TAS tools, game
+enhancement scripts, etc with Lua.
+
+This is the Mupen64Plus-Core library. It needs to be paired with the modified
+Mupen64Plus-UI-Console program (or other frontend, if you feel like adapting it)
+that adds the `--lua` command line option to actually load a script. You'll also
+need the rest of Mupen64Plus; so far I haven't forked the other modules since I
+haven't changed them, so the ones from https://github.com/mupen64plus will work
+just fine.
+
+Mind that I've only modified the Unix makefile. I have neither the experience
+nor interest to mess with the Windows makefiles at the moment, so it probably
+won't build on Windows until someone gets around to fixing those.
+
+
+Original README follows...
+
+
 Mupen64Plus-Core README
 -----------------------
 
@@ -25,7 +48,7 @@ README Sections
   - SDL 1.2
   - libpng
   - freetype 2
-  - zlib 
+  - zlib
 
 *Source Build Requirements*
 
@@ -50,7 +73,7 @@ projects/unix directory, then build using make:
 Type 'make' by itself to view all available build options:
 
  $ make
- Mupen64Plus makefile. 
+ Mupen64Plus makefile.
    Targets:
      all           == Build Mupen64Plus and all plugins
      clean         == remove object files
