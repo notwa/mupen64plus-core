@@ -115,3 +115,11 @@ m64p_error m64p_lua_load_script(const char *path) {
 			return M64ERR_INTERNAL;
 	}
 }
+
+
+void m64p_lua_render_callback() {
+}
+
+
+void m64p_lua_vi_callback() {
+}
