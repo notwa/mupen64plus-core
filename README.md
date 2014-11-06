@@ -58,20 +58,24 @@ build Mupen64Plus from source:
   - GNU C and C++ compiler, libraries, and headers
   - GNU make
   - Development packages for all the libraries above
+  - `binutils-dev` package, if building with debugger functions.
 
 2. Building From Source
 -----------------------
 
 If you downloaded the binary distribution of Mupen64Plus, skip to the
 Installation section. To build the source distribution, unzip and cd into the
-projects/unix directory, then build using make:
+`projects/unix directory`, then build using `make`:
 
+```
  $ unzip mupen64plus-core-x-y-z-src.zip
  $ cd mupen64plus-core-x-y-z-src/projects/unix
  $ make all
+```
 
-Type 'make' by itself to view all available build options:
+Type `make` by itself to view all available build options:
 
+```
  $ make
  Mupen64Plus makefile.
    Targets:
@@ -105,56 +109,62 @@ Type 'make' by itself to view all available build options:
      DBG_TIMING=1  == print timing data
      DBG_PROFILE=1 == dump profiling data for r4300 dynarec to data file
      V=1           == show verbose compiler output
+```
 
 3. Installation
 ---------------
 
 *Binary Distribution*
 
-To install the binary distribution of Mupen64Plus, su to root and run the
-provided install.sh script:
+To install the binary distribution of Mupen64Plus, `su` to root and run the
+provided `install.sh` script:
 
+```
  $ su
  # ./install.sh
  # exit
  $
+```
 
-The install script will copy the executable to /usr/local/bin and a directory
-called /usr/local/share/mupen64plus will be created to hold plugins and other
+The install script will copy the executable to `/usr/local/bin` and a directory
+called `/usr/local/share/mupen64plus` will be created to hold plugins and other
 files used by mupen64plus.
 
-NOTE: By default, install.sh uses /usr/local for the install prefix. Although
-the user can specify an alternate prefix to install.sh at the commandline, the
-mupen64plus binary was compiled to look for the install directory in /usr/local,
-so specifying an alternate prefix to install.sh will cause problems (the
+NOTE: By default, `install.sh` uses `/usr/local` for the install prefix. Although
+the user can specify an alternate prefix to `install.sh` at the commandline, the
+mupen64plus binary was compiled to look for the install directory in `/usr/local`,
+so specifying an alternate prefix to `install.sh` will cause problems (the
 mupen64plus front-end application will not find the directory containing the
 core library) unless the directory to which you install it is known by your
-dynamic library loader (ie, included in /etc/ld.conf.so)
+dynamic library loader (ie, included in `/etc/ld.conf.so`)
 
-If you want to use a prefix other than /usr/local, you may also download the
+If you want to use a prefix other than `/usr/local`, you may also download the
 source code package and build with the PREFIX option (see below).
 
 *Source Distribution*
 
-After building mupen64plus and all plugins, su to root and type 'make install'
+After building mupen64plus and all plugins, `su` to root and type `make install`
 to install Mupen64Plus. The install process will copy the executable to
-$PREFIX/bin and a directory called $PREFIX/share/mupen64plus will be created
-to hold plugins and other files used by mupen64plus. By default, PREFIX is set
-to /usr/local. This can be changed by passing the PREFIX option to make. NOTE:
+`$PREFIX/bin` and a directory called `$PREFIX/share/mupen64plus` will be created
+to hold plugins and other files used by mupen64plus. By default, `PREFIX` is set
+to `/usr/local`. This can be changed by passing the `PREFIX` option to `make`. NOTE:
 you must pass the prefix, when building AND installing. For example, to install
-mupen64plus to /usr, do this:
+mupen64plus to `/usr`, do this:
 
+```
  $ make PREFIX=/usr all
  $ sudo make PREFIX=/usr install
  $
+```
 
 4. Key Commands In Emulator
 ---------------------------
 The keys or joystick/mouse inputs which will be mapped to the N64 controller
 for playing the games are determined by the input plugin.  The emulator core
 also supports several key commands during emulation, which may be configured by
-editing the ~/.config/mupen64plus/mupen64plus.cfg file.  They are:
+editing the `~/.config/mupen64plus/mupen64plus.cfg` file.  They are:
 
+```
    Escape == Quit the emulator
       0-9 == Select virtual 'slot' for save/load state (F5 and F7) commands
        F5 == Save emulator state
@@ -171,6 +181,4 @@ Alt-Enter == Toggle between windowed and fullscreen (may not be supported by all
         F == Fast Forward (playback at 250% normal speed while F key is pressed)
         [ == Decrease volume
         ] == Increase volume
-
-
-
+```
