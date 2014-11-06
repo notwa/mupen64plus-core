@@ -36,6 +36,10 @@ static int rom_meta_index(lua_State *L) {
 				break;
 			}
 
+			//ensure name is null terminated.
+			char name[sizeof(header.Name)+1];
+			strncpy(name, (char*)header.Name, sizeof(name));
+
 			lua_createtable(L, 0, 16); //-1: tbl
 			LUA_SET_FIELD(L, -1, "init_PI_BSB_DOM1_LAT_REG", integer,
 				header.init_PI_BSB_DOM1_LAT_REG);
@@ -52,10 +56,7 @@ static int rom_meta_index(lua_State *L) {
 			LUA_SET_FIELD(L, -1, "CRC2",      integer, header.CRC2);
 			LUA_SET_FIELD(L, -1, "_x18",      integer, header.Unknown[0]);
 			LUA_SET_FIELD(L, -1, "_x1C",      integer, header.Unknown[1]);
-
-			lua_pushlstring(L, (char*)header.Name, sizeof(header.Name));
-			lua_setfield(L, -2, "Name");
-
+			LUA_SET_FIELD(L, -1, "Name", string,  name);
 			LUA_SET_FIELD(L, -1, "_x34", integer, header.unknown);
 			LUA_SET_FIELD(L, -1, "Manufacturer_ID", integer,
 				header.Manufacturer_ID);
@@ -73,12 +74,8 @@ static int rom_meta_index(lua_State *L) {
 			}
 
 			lua_createtable(L, 0, 6); //-1: tbl
-			lua_pushlstring(L, settings.goodname, sizeof(settings.goodname));
-			lua_setfield(L, -2, "goodname");
-
-			lua_pushlstring(L, settings.MD5, sizeof(settings.MD5));
-			lua_setfield(L, -2, "MD5");
-
+			LUA_SET_FIELD(L, -1, "goodname", string,  settings.goodname);
+			LUA_SET_FIELD(L, -1, "MD5",      string,  settings.MD5);
 			LUA_SET_FIELD(L, -1, "savetype", integer, settings.savetype);
 			LUA_SET_FIELD(L, -1, "status",   integer, settings.status);
 			LUA_SET_FIELD(L, -1, "players",  integer, settings.players);

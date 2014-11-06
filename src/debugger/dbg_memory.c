@@ -327,7 +327,7 @@ uint32 read_memory_32(uint32 addr){
         return read_memory_32((tlb_LUT_r[addr>>12]&0xFFFFF000)|(addr&0xFFF));
       return M64P_MEM_INVALID;
     case M64P_MEM_RDRAM:
-      return *((uint32 *)(rdramb + (addr & 0xFFFFFF)));
+	  return *((uint32 *)(rdramb + (addr & 0xFFFFFF)));
     case M64P_MEM_RSPMEM:
       if ((addr & 0xFFFF) < 0x1000)
         return *((uint32 *)(SP_DMEMb + (addr&0xFFF)));
@@ -403,8 +403,11 @@ void write_memory_32(uint32 addr, uint32 value){
   switch(get_memory_type(addr))
     {
     case M64P_MEM_RDRAM:
-      *((uint32 *)(rdramb + (addr & 0xFFFFFF))) = value;
-      CHECK_MEM(addr)
+      addr &= 0xFFFFFF;
+	  *((uint32 *)(rdramb + addr)) = value;
+
+	  if(r4300emu == CORE_DYNAREC && blocks[addr>>12] != NULL)
+		CHECK_MEM(addr)
       break;
     }
 }
