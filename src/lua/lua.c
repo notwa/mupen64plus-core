@@ -117,9 +117,37 @@ m64p_error m64p_lua_load_script(const char *path) {
 }
 
 
+static void run_callbacks(const char *name, lua_State *L) {
+	//printf("calling Lua callback '%s'\n", name);
+	lua_getfield(L, LUA_REGISTRYINDEX, name);
+	int i=0;
+	while(1) {
+		lua_rawgeti(L, -1, ++i);
+		if(lua_isfunction(L, -1)) {
+			//printf("  calling #%d\n", i);
+			int err = lua_pcall(L, 0, 0, 0);
+			if(err) {
+				DebugMessage(M64MSG_ERROR, "Lua %s: %s",
+					name, lua_tostring(L, -1));
+				lua_pop(L, 1);
+			}
+		}
+		else if(lua_isnil(L, -1)) {
+			lua_pop(L, 1);
+			break;
+		}
+		else lua_pop(L, 1);
+	}
+	lua_pop(L, 1); //remove callbacks table
+	//printf("callbacks done\n");
+}
+
+
 void m64p_lua_render_callback() {
+	if(g_luaState) run_callbacks("render_callbacks", g_luaState);
 }
 
 
 void m64p_lua_vi_callback() {
+	if(g_luaState) run_callbacks("vi_callbacks", g_luaState);
 }

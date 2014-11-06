@@ -113,6 +113,33 @@ static int emu_resume(lua_State *L) {
 		CoreDoCommand(M64CMD_RESUME, 0, NULL));
 }
 
+static int emu_register_callback(lua_State *L) {
+	luaL_checktype(L, 2, LUA_TFUNCTION);
+
+	char tname[256];
+	const char *name = luaL_checkstring(L, 1);
+	snprintf(tname, sizeof(tname), "%s_callbacks", name);
+
+	lua_getfield(L, LUA_REGISTRYINDEX, tname);
+	if(!lua_istable(L, -1)) return luaL_error(L, "Invalid callback ID");
+	//-1: callbacks tbl
+
+	//scan this table until we find an empty slot
+	int i=0;
+	while(1) {
+		lua_rawgeti(L, -1, ++i); //-1: slot, -2: tbl
+		if(!lua_isfunction(L, -1)) break;
+	}
+
+	lua_pop(L, 1); //-1: tbl
+	lua_pushvalue(L, 2); //-1: func, -2: tbl
+	lua_rawseti(L, -2, i); //-1: tbl
+	lua_pop(L, 1); //remove tbl
+
+	lua_pushboolean(L, 1);
+	return 1;
+}
+
 
 static int mem_meta_index(lua_State *L) {
 	if(lua_isinteger(L, 2)) {
@@ -146,12 +173,20 @@ void m64p_lua_load_libs(lua_State *L) {
 	lua_setfield(L, LUA_REGISTRYINDEX, "rom_fields");
 
 
+	//callback tables
+	lua_newtable(L);
+	lua_setfield(L, LUA_REGISTRYINDEX, "vi_callbacks");
+	lua_newtable(L);
+	lua_setfield(L, LUA_REGISTRYINDEX, "render_callbacks");
+
+
 	//global m64p table
 	static const luaL_Reg funcs_m64p[] = {
-		{"run",    emu_run},
-		{"stop",   emu_stop},
-		{"pause",  emu_pause},
-		{"resume", emu_resume},
+		{"run",              emu_run},
+		{"stop",             emu_stop},
+		{"pause",            emu_pause},
+		{"resume",           emu_resume},
+		{"registerCallback", emu_register_callback},
 		{NULL, NULL}
 	};
 	luaL_newlib(L, funcs_m64p); //-1: m64p
@@ -191,7 +226,6 @@ void m64p_lua_load_libs(lua_State *L) {
 	luaL_newlib(L, meta_mem); //-1: meta, -2: mem, -3: m64p
 	lua_setmetatable(L, -2); //-1: mem, -2: m64p
 	lua_setfield(L, -2, "memory"); //-1: m64p
-
 
 	lua_setglobal(L, "m64p");
 }
