@@ -8,6 +8,8 @@ local function hexdump(str, base, fmt)
 	fmt  = fmt  or '%04X'
 	for y = 0, #str-1, 16 do
 		local buf = {fmt:format(base+y)}
+
+		--print hex
 		for x = 0, 15 do
 			local a = x + y + 1
 			buf[#buf+1] = ((x % 4) == 0) and "|" or " "
@@ -18,6 +20,7 @@ local function hexdump(str, base, fmt)
 			end
 		end
 
+		--print ASCII
 		buf[#buf+1] = '|'
 		for x = 0, 15 do
 			local a = x + y + 1
@@ -27,11 +30,15 @@ local function hexdump(str, base, fmt)
 			end
 		end
 
-		print(table.concat(buf))
+		print(table.concat(buf)) --output the buffer
 	end
 end
 
 
+--example function, use the VI callback to implement simple cheats
+--you could do more advanced memory manipulation here beyond what's possible
+--with a Gameshark code (including e.g. reading from external files or sockets,
+--displaying a GUI using lgi, etc)
 local vi_count = 0
 local function vi_callback()
 	if vi_count == 0 then
@@ -40,13 +47,16 @@ local function vi_callback()
 		end
 
 	elseif vi_count >= 4 then
-		hexdump(m64p.memory:read(0x80000000, 256))
+		--hexdump(m64p.memory:read(0x80000000, 256))
+		--print("speed:", m64p.memory:read(0x800F6BA4, 'float'))
 
 		--writing too early breaks the game (even though as a Gameshark code
 		--on real N64 there's no problem?)
 		if m64p.memory:read(0x800F6BA4, 'u8') ~= 0 then
-			--change player 1 max speed (second byte of a float)
-			m64p.memory[0x800F6BA5] = 0xFF
+			--change player 1 max speed to ~110km/h (500 units/sec up from ~294)
+			--you can always go higher, but the game starts to get unplayable
+			--due to your kart lifting off and taking flight on every hill.
+			m64p.memory:write(0x800F6BA4, 'float', 500)
 		end
 	end
 

@@ -18,10 +18,11 @@ enum {
 	MEM_TYPE_U32,
 	MEM_TYPE_FLOAT,
 	MEM_TYPE_DOUBLE,
+	MEM_TYPE_STRING, //used for write
 	NUM_MEM_TYPES
 };
 static const char *memTypeName[] = {
-	"s8", "u8", "s16", "u16", "s32", "u32", "float", "double", NULL};
+	"s8", "u8", "s16", "u16", "s32", "u32", "float", "double", "string", NULL};
 
 
 static int rom_open(lua_State *L) {
@@ -297,6 +298,69 @@ static int mem_method_read(lua_State *L) {
 }
 
 
+static int mem_method_write(lua_State *L) {
+	u32 addr = luaL_checkinteger(L, 2);
+
+	lua_getfield(L, LUA_REGISTRYINDEX, "mem_types"); //-1: types
+	lua_pushvalue(L, 3); //-1: key, -2: types
+	lua_gettable(L, -2); //-1: val, -2: types
+	int tp = luaL_optinteger(L, -1, -1);
+	lua_pop(L, 2);
+
+	switch(tp) {
+		case MEM_TYPE_S8:
+			write_memory_8(addr, (s8)luaL_checkinteger(L, 4));
+			break;
+
+		case MEM_TYPE_U8:
+			write_memory_8(addr, (u8)luaL_checkinteger(L, 4));
+			break;
+
+		case MEM_TYPE_S16:
+			write_memory_16(addr, (s16)luaL_checkinteger(L, 4));
+			break;
+
+		case MEM_TYPE_U16:
+			write_memory_16(addr, (u16)luaL_checkinteger(L, 4));
+			break;
+
+		case MEM_TYPE_S32:
+			write_memory_32_unaligned(addr, (s32)luaL_checkinteger(L, 4));
+			break;
+
+		case MEM_TYPE_U32:
+			write_memory_32_unaligned(addr, (u32)luaL_checkinteger(L, 4));
+			break;
+
+		case MEM_TYPE_FLOAT: {
+			float num = (float)luaL_checknumber(L, 4);
+			write_memory_32_unaligned(addr, *(u32*)&num);
+			break;
+		}
+
+		case MEM_TYPE_DOUBLE: {
+			double num = (double)luaL_checknumber(L, 4);
+			write_memory_64_unaligned(addr, *(u64*)&num);
+			break;
+		}
+
+		case MEM_TYPE_STRING: {
+			size_t len;
+			const char *str = luaL_checklstring(L, 4, &len);
+			int i; for(i=0; i<len; i++) write_memory_8(addr+i, str[i]);
+			break;
+		}
+
+		default:
+			lua_pushnil(L);
+			lua_pushstring(L, "Invalid type");
+			return 2;
+	}
+
+	return 0;
+}
+
+
 void m64p_lua_load_libs(lua_State *L) {
 	int i;
 
@@ -375,7 +439,8 @@ void m64p_lua_load_libs(lua_State *L) {
 
 	//m64p.memory methods
 	static const luaL_Reg methods_mem[] = {
-		{"read", mem_method_read},
+		{"read",  mem_method_read},
+		{"write", mem_method_write},
 		{NULL, NULL}
 	};
 	luaL_newlib(L, methods_mem); //-1: methods, -2: m64p
