@@ -12,7 +12,7 @@ local function vi_callback()
 	elseif vi_count >= 4 then
 		--writing too early breaks the game (even though as a Gameshark code
 		--on real N64 there's no problem?)
-		if m64p.memory[0x800F6BA5] ~= 0 then
+		if m64p.memory:readu8(0x800F6BA4) ~= 0 then
 			--change player 1 max speed (second byte of a float)
 			m64p.memory[0x800F6BA5] = 0xFF
 		end

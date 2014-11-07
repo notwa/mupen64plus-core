@@ -190,6 +190,49 @@ static int mem_meta_newindex(lua_State *L) {
 }
 
 
+static int mem_reads8(lua_State *L) {
+	lua_pushinteger(L, (s8)read_memory_8(luaL_checkinteger(L, 2)));
+	return 1;
+}
+
+static int mem_readu8(lua_State *L) {
+	lua_pushinteger(L, (u8)read_memory_8(luaL_checkinteger(L, 2)));
+	return 1;
+}
+
+static int mem_reads16(lua_State *L) {
+	lua_pushinteger(L, (s16)read_memory_16(luaL_checkinteger(L, 2)));
+	return 1;
+}
+
+static int mem_readu16(lua_State *L) {
+	lua_pushinteger(L, (u16)read_memory_16(luaL_checkinteger(L, 2)));
+	return 1;
+}
+
+static int mem_reads32(lua_State *L) {
+	lua_pushinteger(L, (s32)read_memory_32_unaligned(luaL_checkinteger(L, 2)));
+	return 1;
+}
+
+static int mem_readu32(lua_State *L) {
+	lua_pushinteger(L, (u32)read_memory_32_unaligned(luaL_checkinteger(L, 2)));
+	return 1;
+}
+
+static int mem_readfloat(lua_State *L) {
+	u32 num = read_memory_32_unaligned(luaL_checkinteger(L, 2));
+	lua_pushnumber(L, *(float*)&num);
+	return 1;
+}
+
+static int mem_readdouble(lua_State *L) {
+	u64 num = read_memory_64_unaligned(luaL_checkinteger(L, 2));
+	lua_pushnumber(L, *(double*)&num);
+	return 1;
+}
+
+
 void m64p_lua_load_libs(lua_State *L) {
 	//table of ROM field names
 	lua_createtable(L, 0, NUM_ROM_FIELDS);
@@ -240,7 +283,14 @@ void m64p_lua_load_libs(lua_State *L) {
 
 	//m64p.memory table
 	static const luaL_Reg funcs_mem[] = {
-		//{"open",   rom_open},
+		{"reads8",     mem_reads8},
+		{"readu8",     mem_readu8},
+		{"reads16",    mem_reads16},
+		{"readu16",    mem_readu16},
+		{"reads32",    mem_reads32},
+		{"readu32",    mem_readu32},
+		{"readfloat",  mem_readfloat},
+		{"readdouble", mem_readdouble},
 		{NULL, NULL}
 	};
 	luaL_newlib(L, funcs_mem); //-1: mem, -2: m64p
