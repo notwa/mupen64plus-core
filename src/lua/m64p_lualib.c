@@ -9,6 +9,20 @@ enum {
 };
 static const char *romFieldName[] = {"header", "settings", NULL};
 
+enum {
+	MEM_TYPE_S8,
+	MEM_TYPE_U8,
+	MEM_TYPE_S16,
+	MEM_TYPE_U16,
+	MEM_TYPE_S32,
+	MEM_TYPE_U32,
+	MEM_TYPE_FLOAT,
+	MEM_TYPE_DOUBLE,
+	NUM_MEM_TYPES
+};
+static const char *memTypeName[] = {
+	"s8", "u8", "s16", "u16", "s32", "u32", "float", "double", NULL};
+
 
 static int rom_open(lua_State *L) {
 	const char *path = luaL_checkstring(L, 1);
@@ -172,9 +186,13 @@ static int mem_meta_index(lua_State *L) {
 	if(lua_isinteger(L, 2)) {
 		uint32 addr = luaL_checkinteger(L, 2);
 		lua_pushinteger(L, read_memory_8(addr));
-		return 1;
 	}
-	lua_pushnil(L);
+	else {
+		lua_getfield(L, LUA_REGISTRYINDEX, "memory_methods"); //-1: methods
+		lua_pushvalue(L, 2); //-1: key, -2: methods
+		lua_gettable(L, -2); //-1: val, -2: methods
+		lua_remove(L, -2); //-1: val
+	}
 	return 1;
 }
 
@@ -186,61 +204,118 @@ static int mem_meta_newindex(lua_State *L) {
 		write_memory_8(addr, val);
 		return 0;
 	}
+	else if(lua_tostring(L, 2))
+		return luaL_error(L, "Cannot assign to field '%s' in memory",
+		lua_tostring(L, 2));
+	else return luaL_error(L, "Cannot assign to field (%s) in memory",
+		luaL_typename(L, 2));
 	return 0;
 }
 
 
-static int mem_reads8(lua_State *L) {
-	lua_pushinteger(L, (s8)read_memory_8(luaL_checkinteger(L, 2)));
-	return 1;
-}
+static int mem_method_read(lua_State *L) {
+	u32 addr = luaL_checkinteger(L, 2);
+	if(lua_isinteger(L, 3)) { //read specified number of bytes as string
+		int len = lua_tointeger(L, 3);
+		if(len < 1) {
+			lua_pushnil(L);
+			lua_pushstring(L, "Invalid length");
+			return 2;
+		}
 
-static int mem_readu8(lua_State *L) {
-	lua_pushinteger(L, (u8)read_memory_8(luaL_checkinteger(L, 2)));
-	return 1;
-}
+		//this could be used if the host system byte order allowed for it.
+		//XXX will this work with TLB?
+		/* if(addr >= 0x80000000 && (addr+len) <= 0x80800000) {
+			lua_pushlstring(L, (const char*)(rdramb + (addr & 0xFFFFFF)), len);
+		}
 
-static int mem_reads16(lua_State *L) {
-	lua_pushinteger(L, (s16)read_memory_16(luaL_checkinteger(L, 2)));
-	return 1;
-}
+		//XXX verify address range
+		else if(addr >= 0xB0000000 && (addr+len) <= 0xB4000000) {
+			lua_pushlstring(L, (const char*)(rom + (addr & 0xFFFFFF)), len);
+		}
 
-static int mem_readu16(lua_State *L) {
-	lua_pushinteger(L, (u16)read_memory_16(luaL_checkinteger(L, 2)));
-	return 1;
-}
+		else */ { //fall back to slow method.
+			luaL_Buffer buf;
+			luaL_buffinitsize(L, &buf, len);
+			int i; for(i=0; i<len; i++) {
+				luaL_addchar(&buf, read_memory_8(addr+i));
+			}
+			luaL_pushresultsize(&buf, len);
+		}
+	}
+	else { //must be a variable type name
+		lua_getfield(L, LUA_REGISTRYINDEX, "mem_types"); //-1: types
+		lua_pushvalue(L, 3); //-1: key, -2: types
+		lua_gettable(L, -2); //-1: val, -2: types
+		int tp = luaL_optinteger(L, -1, -1);
+		lua_pop(L, 2);
 
-static int mem_reads32(lua_State *L) {
-	lua_pushinteger(L, (s32)read_memory_32_unaligned(luaL_checkinteger(L, 2)));
-	return 1;
-}
+		switch(tp) {
+			case MEM_TYPE_S8:
+				lua_pushinteger(L, (s8)read_memory_8(addr));
+				break;
 
-static int mem_readu32(lua_State *L) {
-	lua_pushinteger(L, (u32)read_memory_32_unaligned(luaL_checkinteger(L, 2)));
-	return 1;
-}
+			case MEM_TYPE_U8:
+				lua_pushinteger(L, (u8)read_memory_8(addr));
+				break;
 
-static int mem_readfloat(lua_State *L) {
-	u32 num = read_memory_32_unaligned(luaL_checkinteger(L, 2));
-	lua_pushnumber(L, *(float*)&num);
-	return 1;
-}
+			case MEM_TYPE_S16:
+				lua_pushinteger(L, (s16)read_memory_16(addr));
+				break;
 
-static int mem_readdouble(lua_State *L) {
-	u64 num = read_memory_64_unaligned(luaL_checkinteger(L, 2));
-	lua_pushnumber(L, *(double*)&num);
+			case MEM_TYPE_U16:
+				lua_pushinteger(L, (u16)read_memory_16(addr));
+				break;
+
+			case MEM_TYPE_S32:
+				lua_pushinteger(L, (s32)read_memory_32(addr));
+				break;
+
+			case MEM_TYPE_U32:
+				lua_pushinteger(L, (u32)read_memory_32(addr));
+				break;
+
+			case MEM_TYPE_FLOAT: {
+				u32 num = read_memory_32_unaligned(addr);
+				lua_pushnumber(L, *(float*)&num);
+				break;
+			}
+
+			case MEM_TYPE_DOUBLE: {
+				u64 num = read_memory_64_unaligned(addr);
+				lua_pushnumber(L, *(double*)&num);
+				break;
+			}
+
+			default:
+				lua_pushnil(L);
+				lua_pushstring(L, "Invalid type");
+				return 2;
+		}
+	}
 	return 1;
 }
 
 
 void m64p_lua_load_libs(lua_State *L) {
+	int i;
+
 	//table of ROM field names
 	lua_createtable(L, 0, NUM_ROM_FIELDS);
-	int i; for(i=0; romFieldName[i]; i++) {
+	for(i=0; romFieldName[i]; i++) {
 		lua_pushinteger(L, i);
 		lua_setfield(L, -2, romFieldName[i]);
 	}
 	lua_setfield(L, LUA_REGISTRYINDEX, "rom_fields");
+
+
+	//table of memory access variable types.
+	lua_createtable(L, 0, NUM_MEM_TYPES);
+	for(i=0; memTypeName[i]; i++) {
+		lua_pushinteger(L, i);
+		lua_setfield(L, -2, memTypeName[i]);
+	}
+	lua_setfield(L, LUA_REGISTRYINDEX, "mem_types");
 
 
 	//callback tables
@@ -283,14 +358,7 @@ void m64p_lua_load_libs(lua_State *L) {
 
 	//m64p.memory table
 	static const luaL_Reg funcs_mem[] = {
-		{"reads8",     mem_reads8},
-		{"readu8",     mem_readu8},
-		{"reads16",    mem_reads16},
-		{"readu16",    mem_readu16},
-		{"reads32",    mem_reads32},
-		{"readu32",    mem_readu32},
-		{"readfloat",  mem_readfloat},
-		{"readdouble", mem_readdouble},
+		//{"read", mem_read},
 		{NULL, NULL}
 	};
 	luaL_newlib(L, funcs_mem); //-1: mem, -2: m64p
@@ -305,5 +373,15 @@ void m64p_lua_load_libs(lua_State *L) {
 	lua_setmetatable(L, -2); //-1: mem, -2: m64p
 	lua_setfield(L, -2, "memory"); //-1: m64p
 
+	//m64p.memory methods
+	static const luaL_Reg methods_mem[] = {
+		{"read", mem_method_read},
+		{NULL, NULL}
+	};
+	luaL_newlib(L, methods_mem); //-1: methods, -2: m64p
+	lua_setfield(L, LUA_REGISTRYINDEX, "memory_methods"); //-1: m64p
+
+
+	//install m64p table as global variable
 	lua_setglobal(L, "m64p");
 }

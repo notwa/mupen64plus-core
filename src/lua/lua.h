@@ -9,6 +9,8 @@
 #define M64P_CORE_PROTOTYPES 1
 #include "api/lua.h"
 #include "api/m64p_frontend.h"
+#include "memory/memory.h"
+#include "main/rom.h"
 
 void m64p_lua_load_libs(lua_State *L);
 
