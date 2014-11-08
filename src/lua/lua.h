@@ -22,5 +22,6 @@ void m64p_lua_load_libs(lua_State *L);
 
 //memory
 void m64p_lua_load_memlib(lua_State *L);
+void m64p_lua_load_romlib(lua_State *L);
 
 #endif //__M64P_LUA_H__

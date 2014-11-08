@@ -433,7 +433,8 @@ ifeq ($(LUA), 1)
 	SOURCE += \
 	$(SRCDIR)/lua/lua.c \
 	$(SRCDIR)/lua/m64p_lualib.c \
-	$(SRCDIR)/lua/m64p_lua_memlib.c
+	$(SRCDIR)/lua/m64p_lua_memlib.c \
+	$(SRCDIR)/lua/m64p_lua_romlib.c
 endif
 
 # source files for optional features
