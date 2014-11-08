@@ -20,4 +20,7 @@ void m64p_lua_load_libs(lua_State *L);
 	lua_setfield((L), (idx) < 0 ? ((idx)-1) : (idx), (name)); \
 } while(0)
 
+//memory
+void m64p_lua_load_memlib(lua_State *L);
+
 #endif //__M64P_LUA_H__
