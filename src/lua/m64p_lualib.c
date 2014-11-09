@@ -1,13 +1,27 @@
 //Mupen64Plus built-in Lua modules.
 #include "lua.h"
 #include "main/main.h"
+#include "main/savestates.h"
 
 enum {
 	EMU_FIELD_STATE,
+	EMU_FIELD_STATE_SLOT,
+	EMU_FIELD_VIDEO_MODE,
+	EMU_FIELD_SPEED_FACTOR,
+	EMU_FIELD_SPEED_LIMITER,
+	EMU_FIELD_VIDEO_SIZE,
+	EMU_FIELD_AUDIO_VOLUME,
+	EMU_FIELD_AUDIO_MUTE,
 	NUM_EMU_FIELDS
 };
-static const char *emuFieldName[] = {"state", NULL};
+static const char *emuFieldName[] = {"state", "stateSlot", "videoMode",
+	"speed", "speedLimiter", "videoSize", "audioVolume", "audioMute", NULL};
 
+//M64EMU_*
+static const char *emuStateName[] = {"stopped", "running", "paused", NULL};
+
+//M64VIDEO_*
+static const char *videoModeName[] = {"none", "windowed", "fullscreen", NULL};
 
 static int emu_meta_index(lua_State *L) {
 	lua_getfield(L, LUA_REGISTRYINDEX, "emu_fields"); //-1: fields
@@ -22,15 +36,68 @@ static int emu_meta_index(lua_State *L) {
 			main_core_state_query(M64CORE_EMU_STATE, &state);
 			lua_getfield(L, LUA_REGISTRYINDEX, "emu_states"); //-1: states
 			lua_rawgeti(L, -1, state); //-1: val, -2: states
-			lua_remove(L, -2); //-1: val
-			break;
+			lua_remove(L, -2); //-1: val (XXX necessary?)
+			return 1;
 		}
+
+		case EMU_FIELD_STATE_SLOT:
+			lua_pushinteger(L, savestates_get_slot());
+			return 1;
+
+		case EMU_FIELD_VIDEO_MODE: {
+			int mode = 0;
+			int err = main_core_state_query(M64CORE_VIDEO_MODE, &mode);
+			if(err) return luaL_error(L, "%s", m64p_lua_get_err_string(err));
+
+			lua_getfield(L, LUA_REGISTRYINDEX, "video_modes"); //-1: modes
+			lua_rawgeti(L, -1, mode); //-1: val, -2: modes
+			lua_remove(L, -2); //-1: val
+			return 1;
+		}
+
+		case EMU_FIELD_SPEED_FACTOR: {
+			int speed = 0;
+			main_core_state_query(M64CORE_SPEED_FACTOR, &speed);
+			lua_pushnumber(L, (double)speed / 100.0);
+			return 1;
+		}
+
+		case EMU_FIELD_SPEED_LIMITER: {
+			//higher number = slower (larger delay in VI)
+			int limit = 0;
+			main_core_state_query(M64CORE_SPEED_LIMITER, &limit);
+			lua_pushinteger(L, limit);
+			return 1;
+		}
+
+		case EMU_FIELD_VIDEO_SIZE: {
+			int width, height;
+			main_get_screen_size(&width, &height);
+			lua_createtable(L, 0, 2);
+			LUA_SET_FIELD(L, -1, "width",  integer, width);
+			LUA_SET_FIELD(L, -1, "height", integer, height);
+			return 1;
+		}
+
+		case EMU_FIELD_AUDIO_VOLUME: {
+			int vol = 0;
+			int err = main_core_state_query(M64CORE_AUDIO_VOLUME, &vol);
+			if(err) return luaL_error(L, "%s", m64p_lua_get_err_string(err));
+			lua_pushinteger(L, (double)vol / 100.0);
+			return 1;
+		}
+
+		case EMU_FIELD_AUDIO_MUTE: {
+			lua_pushboolean(L, main_volume_get_muted());
+			return 1;
+		}
+
+		//XXX M64CORE_INPUT_GAMESHARK (what does that even do)
 
 		default:
 			lua_pushnil(L);
+			return 1;
 	}
-
-	return 1;
 }
 
 
@@ -41,6 +108,7 @@ static int emu_meta_newindex(lua_State *L) {
 	int field = luaL_optinteger(L, -1, -1);
 	lua_pop(L, 2);
 
+	int err = 0;
 	switch(field) {
 		case EMU_FIELD_STATE: {
 			int state = 0, isnum = 0;
@@ -50,13 +118,70 @@ static int emu_meta_newindex(lua_State *L) {
 			state = lua_tointegerx(L, -1, &isnum);
 			lua_pop(L, 2);
 
-			if(isnum) {
-				int err = main_core_state_set(M64CORE_EMU_STATE, state);
-				if(err) return luaL_error(L, "%s",m64p_lua_get_err_string(err));
-			}
-
+			if(isnum) err = main_core_state_set(M64CORE_EMU_STATE, state);
+			else return luaL_error(L, "Invalid state");
 			break;
 		}
+
+		case EMU_FIELD_STATE_SLOT: {
+			int slot = luaL_checkinteger(L, 3);
+			err = main_core_state_set(M64CORE_SAVESTATE_SLOT, slot);
+			break;
+		}
+
+		case EMU_FIELD_VIDEO_MODE: {
+			int mode = 0, isnum = 0;
+			lua_getfield(L, LUA_REGISTRYINDEX, "video_modes"); //-1: modes
+			lua_pushvalue(L, 3); //-1: key, -2: modes
+			lua_rawget(L, -2); //-1: mode, -2: modes
+			mode = lua_tointegerx(L, -1, &isnum);
+			lua_pop(L, 2);
+
+			if(isnum) err = main_core_state_set(M64CORE_VIDEO_MODE, mode);
+			break;
+		}
+
+		case EMU_FIELD_SPEED_FACTOR:
+			err = main_core_state_set(M64CORE_SPEED_FACTOR,
+				luaL_checknumber(L, 3) * 100);
+			break;
+
+		case EMU_FIELD_SPEED_LIMITER:
+			err = main_core_state_set(M64CORE_SPEED_LIMITER,
+				luaL_checkinteger(L, 3));
+			break;
+
+		case EMU_FIELD_VIDEO_SIZE: {
+			int width=0, height=0;
+			if(!lua_istable(L, 3)) return luaL_argerror(L, 3, "expected size");
+
+			lua_getfield(L, 3, "width");
+			width = lua_tointeger(L, -1); //assigns 0 if not integer
+			lua_pop(L, 1);
+
+			lua_getfield(L, 3, "height");
+			height = lua_tointeger(L, -1);
+			lua_pop(L, 1);
+
+			if(width < 1 || height < 1 || width > 65535 || height > 65535)
+				return luaL_error(L, "%s", "Invalid size");
+
+			err = main_core_state_set(M64CORE_VIDEO_SIZE,
+				(width << 16) | height);
+			break;
+		}
+
+		case EMU_FIELD_AUDIO_VOLUME:
+			err = main_core_state_set(M64CORE_AUDIO_VOLUME,
+				luaL_checkinteger(L, 3));
+			break;
+
+		case EMU_FIELD_AUDIO_MUTE:
+			err = main_core_state_set(M64CORE_AUDIO_MUTE,
+				lua_toboolean(L, 3));
+			break;
+
+		//XXX M64CORE_INPUT_GAMESHARK (what does that even do)
 
 		default:
 			if(lua_tostring(L, 2))
@@ -66,6 +191,7 @@ static int emu_meta_newindex(lua_State *L) {
 				luaL_typename(L, 2));
 	}
 
+	if(err) return luaL_error(L, "%s", m64p_lua_get_err_string(err));
 	return 0;
 }
 
@@ -154,21 +280,33 @@ static int emu_unregister_callback(lua_State *L) {
 
 
 void m64p_lua_load_libs(lua_State *L) {
+	int i;
+
 	//emulator state table
-	//these don't start at 0 for some reason so we don't use an array of names
+	//these are the M64EMU_* in m64p_types.h which for some inexplicable reason
+	//begin at 1 and don't have a "count" or "last" value
 	lua_createtable(L, 0, 6);
-	LUA_SET_FIELD(L, -1, "stopped", integer, M64EMU_STOPPED);
-	LUA_SET_FIELD(L, -1, "running", integer, M64EMU_RUNNING);
-	LUA_SET_FIELD(L, -1, "paused",  integer, M64EMU_PAUSED);
-	lua_pushstring(L, "stopped"); lua_rawseti(L, -2, M64EMU_STOPPED);
-	lua_pushstring(L, "running"); lua_rawseti(L, -2, M64EMU_RUNNING);
-	lua_pushstring(L, "paused");  lua_rawseti(L, -2, M64EMU_PAUSED);
+	for(i=1; i<=M64EMU_PAUSED; i++) {
+		LUA_SET_FIELD(L, -1, emuStateName[i-1], integer, i);
+		lua_pushstring(L, emuStateName[i-1]);
+		lua_rawseti(L, -2, i);
+	}
 	lua_setfield(L, LUA_REGISTRYINDEX, "emu_states");
+
+
+	//video modes
+	lua_createtable(L, 0, 6);
+	for(i=1; i<=M64VIDEO_FULLSCREEN; i++) {
+		LUA_SET_FIELD(L, -1, videoModeName[i-1], integer, i);
+		lua_pushstring(L, videoModeName[i-1]);
+		lua_rawseti(L, -2, i);
+	}
+	lua_setfield(L, LUA_REGISTRYINDEX, "video_modes");
 
 
 	//table of emu field names
 	lua_createtable(L, 0, NUM_EMU_FIELDS);
-	int i; for(i=0; emuFieldName[i]; i++) {
+	for(i=0; emuFieldName[i]; i++) {
 		lua_pushinteger(L, i);
 		lua_setfield(L, -2, emuFieldName[i]);
 	}
