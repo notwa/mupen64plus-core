@@ -173,7 +173,7 @@ static int emu_meta_newindex(lua_State *L) {
 
 		case EMU_FIELD_AUDIO_VOLUME:
 			err = main_core_state_set(M64CORE_AUDIO_VOLUME,
-				luaL_checkinteger(L, 3));
+				luaL_checknumber(L, 3) * 100);
 			break;
 
 		case EMU_FIELD_AUDIO_MUTE:

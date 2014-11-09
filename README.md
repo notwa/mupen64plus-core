@@ -17,6 +17,10 @@ Mind that I've only modified the Unix makefile. I have neither the experience
 nor interest to mess with the Windows makefiles at the moment, so it probably
 won't build on Windows until someone gets around to fixing those.
 
+Also please keep in mind that this is still in early development. APIs are not
+documented and will likely change. Presently it requires a liblua.so recompiled
+with `-fPIC` but I hope to be able to fix that...
+
 
 Original README follows...
 

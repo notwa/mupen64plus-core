@@ -44,6 +44,7 @@ local function vi_callback()
 	if vi_count == 4 then
 		print("state:", m64p.state)
 		--m64p.state = 'paused'
+		m64p.audioVolume = 0.2;
 	end
 
 	if vi_count == 0 then
