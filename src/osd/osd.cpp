@@ -48,7 +48,7 @@ static PTRGLACTIVETEXTURE pglActiveTexture = NULL;
 // static variables for OSD
 static int l_OsdInitialized = 0;
 
-static LIST_HEAD(l_messageQueue);
+static osd_message_t *l_messageQueue = NULL;
 static OGLFT::Monochrome *l_font;
 static float l_fLineHeight = -1.0;
 
@@ -199,9 +199,7 @@ static void animation_fade(osd_message_t *msg)
 static float get_message_offset(osd_message_t *msg, float fLinePos)
 {
     float offset = (float) (l_font->height() * fLinePos);
-
-    switch(msg->corner)
-    {
+    switch(msg->corner) {
         case OSD_TOP_LEFT:
         case OSD_TOP_CENTER:
         case OSD_TOP_RIGHT:
@@ -220,23 +218,22 @@ void osd_init(int width, int height)
     const char *fontpath;
 
     osd_list_lock = SDL_CreateMutex();
-    if (!osd_list_lock) {
+    if(!osd_list_lock) {
         DebugMessage(M64MSG_ERROR, "Could not create osd list lock");
         return;
     }
 
-    if (!OGLFT::Init_FT())
-    {
+    if(!OGLFT::Init_FT()) {
         DebugMessage(M64MSG_ERROR, "Could not initialize freetype library.");
         return;
     }
 
     fontpath = ConfigGetSharedDataFilepath(FONT_FILENAME);
 
-    l_font = new OGLFT::Monochrome(fontpath, (float) height / 35.0f);  // make font size proportional to screen height
+	// make font size proportional to screen height
+    l_font = new OGLFT::Monochrome(fontpath, (float) height / 35.0f);
 
-    if(!l_font || !l_font->isValid())
-    {
+    if(!l_font || !l_font->isValid()) {
         DebugMessage(M64MSG_ERROR, "Could not construct face from %s", fontpath);
         return;
     }
@@ -250,9 +247,9 @@ void osd_init(int width, int height)
     glEnable(GL_RASTER_POSITION_UNCLIPPED_IBM);
 #endif
 
-    pglActiveTexture = (PTRGLACTIVETEXTURE) VidExt_GL_GetProcAddress("glActiveTexture");
-    if (pglActiveTexture == NULL)
-    {
+    pglActiveTexture = (PTRGLACTIVETEXTURE)VidExt_GL_GetProcAddress(
+		"glActiveTexture");
+    if (pglActiveTexture == NULL) {
         DebugMessage(M64MSG_WARNING, "OpenGL function glActiveTexture() not supported.  OSD deactivated.");
         return;
     }
@@ -264,22 +261,21 @@ void osd_init(int width, int height)
 extern "C"
 void osd_exit(void)
 {
-    osd_message_t *msg, *safe;
-
     // delete font renderer
-    if (l_font)
-    {
+    if (l_font) {
         delete l_font;
         l_font = NULL;
     }
 
     // delete message queue
     SDL_LockMutex(osd_list_lock);
-    list_for_each_entry_safe_t(msg, safe, &l_messageQueue, osd_message_t, list) {
-        osd_remove_message(msg);
-        if (!msg->user_managed)
-            free(msg);
-    }
+    osd_message_t *msg = l_messageQueue;
+	while(msg) {
+		osd_message_t *next = msg->next;
+		osd_remove_message(msg);
+		if(!msg->user_managed) free(msg);
+		msg = next;
+	}
     SDL_UnlockMutex(osd_list_lock);
 
     // shut down the Freetype library
@@ -295,11 +291,10 @@ void osd_exit(void)
 extern "C"
 void osd_render()
 {
-    osd_message_t *msg, *safe;
     int i;
 
     // if we're not initialized or list is empty, then just skip it all
-    if (!l_OsdInitialized || list_empty(&l_messageQueue))
+    if (!l_OsdInitialized || !l_messageQueue)
         return;
 
     // get the viewport dimensions
@@ -366,22 +361,27 @@ void osd_render()
         fCornerPos[i] = 0.5f * l_fLineHeight;
 
     SDL_LockMutex(osd_list_lock);
-    list_for_each_entry_safe_t(msg, safe, &l_messageQueue, osd_message_t, list) {
-        // update message state
-        if(msg->timeout[msg->state] != OSD_INFINITE_TIMEOUT &&
-           ++msg->frames >= msg->timeout[msg->state])
-        {
-            // if message is in last state, mark it for deletion and continue to the next message
-            if(msg->state >= OSD_NUM_STATES - 1)
-            {
-                if (msg->user_managed) {
-                    osd_remove_message(msg);
-                } else {
-                    osd_remove_message(msg);
-                    free(msg);
-                }
+    osd_message_t *msg = l_messageQueue;
+	osd_message_t *prev = NULL;
+	while(msg) {
+		osd_message_t *next = msg->next;
 
-                continue;
+		//printf("OSD msg=%p next=%p prev=%p\n", msg, next, prev);
+		if(msg->timeout[msg->state] != OSD_INFINITE_TIMEOUT
+		&& ++msg->frames >= msg->timeout[msg->state]) {
+            // if message is in last state, delete it
+			//and continue to the next message
+            if(msg->state >= OSD_NUM_STATES - 1) {
+				DebugMessage(M64MSG_VERBOSE, "OSD delete %p\n", msg);
+				osd_remove_message(msg);
+
+				if(prev) prev->next = next;
+				else l_messageQueue = next;
+                if(!msg->user_managed) free(msg);
+
+				//do not set prev = msg because msg is no longer valid.
+				msg = next;
+                continue; //advance to next message in queue.
             }
 
             // go to next state and reset frame count
@@ -389,19 +389,27 @@ void osd_render()
             msg->frames = 0;
         }
 
+		//printf("OSD render %p\n", msg);
         // offset y depending on how many other messages are in the same corner
         float fStartOffset;
-        if (msg->corner >= OSD_MIDDLE_LEFT && msg->corner <= OSD_MIDDLE_RIGHT)  // don't scroll the middle messages
+        if (msg->corner >= OSD_MIDDLE_LEFT && msg->corner <= OSD_MIDDLE_RIGHT) {
+			// don't scroll the middle messages
             fStartOffset = fCornerPos[msg->corner];
-        else
-            fStartOffset = fCornerPos[msg->corner] + (fCornerScroll[msg->corner] * l_fLineHeight);
+		}
+        else {
+            fStartOffset = fCornerPos[msg->corner] +
+				(fCornerScroll[msg->corner] * l_fLineHeight);
+		}
         msg->yoffset += get_message_offset(msg, fStartOffset);
 
         draw_message(msg, viewport[2], viewport[3]);
 
         msg->yoffset -= get_message_offset(msg, fStartOffset);
         fCornerPos[msg->corner] += l_fLineHeight;
-    }
+
+		prev = msg;
+		msg = next;
+	}
     SDL_UnlockMutex(osd_list_lock);
 
     // do the scrolling
@@ -422,21 +430,15 @@ void osd_render()
     for (int i = 0; i < 8; i++)
     {
         pglActiveTexture(GL_TEXTURE0_ARB + i);
-        if (bTexture2D[i])
-            glEnable(GL_TEXTURE_2D);
-        else
-            glDisable(GL_TEXTURE_2D);
+        if(bTexture2D[i]) glEnable(GL_TEXTURE_2D);
+        else glDisable(GL_TEXTURE_2D);
     }
     pglActiveTexture(iActiveTex);
     glPopAttrib();
-    if (bFragmentProg)
-        glEnable(GL_FRAGMENT_PROGRAM_ARB);
-    if (bColorArray)
-        glEnableClientState(GL_COLOR_ARRAY);
-    if (bTexCoordArray)
-        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-    if (bSecColorArray)
-        glEnableClientState(GL_SECONDARY_COLOR_ARRAY);
+    if(bFragmentProg)  glEnable(GL_FRAGMENT_PROGRAM_ARB);
+    if(bColorArray)    glEnableClientState(GL_COLOR_ARRAY);
+    if(bTexCoordArray) glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    if(bSecColorArray) glEnableClientState(GL_SECONDARY_COLOR_ARRAY);
 
     glFinish();
 }
@@ -453,7 +455,6 @@ osd_message_t * osd_new_message(enum osd_corner eCorner, const char *fmt, ...)
     if (!l_OsdInitialized) return NULL;
 
     osd_message_t *msg = (osd_message_t *)malloc(sizeof(*msg));
-
     if (!msg) return NULL;
 
     va_start(ap, fmt);
@@ -496,9 +497,11 @@ osd_message_t * osd_new_message(enum osd_corner eCorner, const char *fmt, ...)
         msg->timeout[OSD_DISAPPEAR] = 40;
     }
 
-    // add to message queue
+    // add to head of message queue
+	DebugMessage(M64MSG_VERBOSE, "OSD add msg %p (%s)\n", msg, msg->text);
     SDL_LockMutex(osd_list_lock);
-    list_add(&msg->list, &l_messageQueue);
+	msg->next = l_messageQueue;
+	l_messageQueue = msg;
     SDL_UnlockMutex(osd_list_lock);
 
     return msg;
@@ -535,8 +538,10 @@ void osd_update_message(osd_message_t *msg, const char *fmt, ...)
     }
 
     SDL_LockMutex(osd_list_lock);
-    if (!osd_message_valid(msg))
-        list_add(&msg->list, &l_messageQueue);
+    if (!osd_message_valid(msg)) {
+        msg->next = l_messageQueue;
+		l_messageQueue = msg;
+	}
     SDL_UnlockMutex(osd_list_lock);
 
 }
@@ -545,10 +550,8 @@ void osd_update_message(osd_message_t *msg, const char *fmt, ...)
 static void osd_remove_message(osd_message_t *msg)
 {
     if (!l_OsdInitialized || !msg) return;
-
     free(msg->text);
     msg->text = NULL;
-    list_del(&msg->list);
 }
 
 // remove message from message queue and free it
@@ -556,7 +559,6 @@ extern "C"
 void osd_delete_message(osd_message_t *msg)
 {
     if (!l_OsdInitialized || !msg) return;
-
     SDL_LockMutex(osd_list_lock);
     osd_remove_message(msg);
     free(msg);
@@ -568,7 +570,6 @@ extern "C"
 void osd_message_set_static(osd_message_t *msg)
 {
     if (!l_OsdInitialized || !msg) return;
-
     msg->timeout[OSD_DISPLAY] = OSD_INFINITE_TIMEOUT;
     msg->state = OSD_DISPLAY;
     msg->frames = 0;
@@ -579,21 +580,19 @@ extern "C"
 void osd_message_set_user_managed(osd_message_t *msg)
 {
     if (!l_OsdInitialized || !msg) return;
-
     msg->user_managed = 1;
 }
 
 // return message pointer if valid (in the OSD list), otherwise return NULL
 static osd_message_t * osd_message_valid(osd_message_t *testmsg)
 {
-    osd_message_t *msg;
-
     if (!l_OsdInitialized || !testmsg) return NULL;
 
-    list_for_each_entry_t(msg, &l_messageQueue, osd_message_t, list) {
-        if (msg == testmsg)
-            return testmsg;
-    }
+	osd_message_t *msg = l_messageQueue;
+	while(msg) {
+		if(msg == testmsg) return msg;
+		msg = msg->next;
+	}
 
     return NULL;
 }

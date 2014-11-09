@@ -22,7 +22,7 @@
 #ifndef __OSD_H__
 #define __OSD_H__
 
-#include "main/list.h"
+//#include "main/list.h"
 #include "osal/preproc.h"
 
 /******************************************************************
@@ -66,8 +66,9 @@ enum osd_animation_type {
     OSD_NUM_ANIM_TYPES
 };
 
-typedef struct {
-    char *text;        // Text that this object will have when displayed
+typedef struct osd_message_t {
+    struct osd_message_t *next;
+	char *text;        // Text that this object will have when displayed
     enum osd_corner corner; // One of the 9 corners
     float xoffset;     // Relative X position
     float yoffset;     // Relative Y position
@@ -79,7 +80,7 @@ typedef struct {
 #define OSD_INFINITE_TIMEOUT 0xffffffff
     unsigned int frames; // number of frames in this state
     int user_managed; // structure managed by caller and not to be freed by us
-    struct list_head list;
+    //struct list_head list;
 } osd_message_t;
 
 enum { R, G, B }; // for referencing color array

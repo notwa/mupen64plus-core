@@ -287,6 +287,7 @@ void m64p_lua_load_libs(lua_State *L) {
 	//begin at 1 and don't have a "count" or "last" value
 	lua_createtable(L, 0, 6);
 	for(i=1; i<=M64EMU_PAUSED; i++) {
+		printf("set emu state '%s' = %d\n", emuStateName[i-1], i);
 		LUA_SET_FIELD(L, -1, emuStateName[i-1], integer, i);
 		lua_pushstring(L, emuStateName[i-1]);
 		lua_rawseti(L, -2, i);
