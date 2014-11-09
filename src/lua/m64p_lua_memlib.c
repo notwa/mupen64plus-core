@@ -16,6 +16,7 @@ enum {
 static const char *memTypeName[] = {
 	"s8", "u8", "s16", "u16", "s32", "u32", "float", "double", "string", NULL};
 
+
 static int mem_meta_index(lua_State *L) {
 	if(lua_isinteger(L, 2)) {
 		uint32 addr = luaL_checkinteger(L, 2);

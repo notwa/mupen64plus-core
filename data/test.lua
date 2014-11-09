@@ -41,9 +41,14 @@ end
 --displaying a GUI using lgi, etc)
 local vi_count = 0
 local function vi_callback()
+	if vi_count == 4 then
+		print("state:", m64p.state)
+		--m64p.state = 'paused'
+	end
+
 	if vi_count == 0 then
 		if m64p.rom.settings.goodname ~= "Mario Kart 64 (U) [!]" then
-			m64p.unregisterCallback('vi', vi_callback)
+			m64p:unregisterCallback('vi', vi_callback)
 		end
 
 	elseif vi_count >= 4 then
@@ -63,4 +68,4 @@ local function vi_callback()
 	vi_count = vi_count + 1
 end
 
-m64p.registerCallback('vi', vi_callback)
+m64p:registerCallback('vi', vi_callback)
