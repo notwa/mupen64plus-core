@@ -95,6 +95,25 @@ m64p_error m64p_lua_load_script(const char *path) {
 }
 
 
+int m64p_lua_map_enum(lua_State *L, int start, int end, const char **names,
+const char *enumName) {
+	lua_createtable(L, 0, (end-start)*2);
+	int i; for(i=start; i<end; i++) {
+		if(!names[i]) continue;
+
+		//name => val
+		lua_pushinteger(L, i); //-1: val, -2: tbl
+		lua_setfield(L, -2, names[i]); //-1: tbl
+
+		//val => name
+		lua_pushstring(L, names[i]); //-1: name, -2: tbl
+		lua_rawseti(L, -2, i); //-1: tbl
+	}
+	lua_setfield(L, LUA_REGISTRYINDEX, enumName);
+	return 0;
+}
+
+
 static void run_callbacks(const char *name, lua_State *L) {
 	//printf("calling Lua callback '%s'\n", name);
 	lua_getfield(L, LUA_REGISTRYINDEX, name);

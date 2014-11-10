@@ -337,6 +337,7 @@ void m64p_lua_load_libs(lua_State *L) {
 	//load m64p submodules into m64p table
 	m64p_lua_load_memlib(L); lua_setfield(L, -2, "memory");
 	m64p_lua_load_romlib(L); lua_setfield(L, -2, "rom");
+	m64p_lua_load_osdlib(L); lua_setfield(L, -2, "osd");
 
 
 	//m64p metatable

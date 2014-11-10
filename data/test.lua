@@ -39,12 +39,20 @@ end
 --you could do more advanced memory manipulation here beyond what's possible
 --with a Gameshark code (including e.g. reading from external files or sockets,
 --displaying a GUI using lgi, etc)
+local msg
 local vi_count = 0
 local function vi_callback()
 	if vi_count == 4 then
 		print("state:", m64p.state)
 		--m64p.state = 'paused'
 		m64p.audioVolume = 0.2;
+
+		msg = m64p.osd.newMessage {
+			text     = "Hello",
+			position = "topRight",
+			color    = 0xFF0000,
+			static   = true,
+		}
 	end
 
 	if vi_count == 0 then
