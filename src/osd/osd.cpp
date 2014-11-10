@@ -165,6 +165,8 @@ static void draw_message(osd_message_t *msg, int width, int height)
     }
 
     // draw the text line
+	//printf("draw %f, %f, \"%s\", (%f, %f, %f, %f)\n", x, y, msg->text,
+	//	msg->sizebox[0], msg->sizebox[1], msg->sizebox[2], msg->sizebox[3]);
     l_font->draw(x, y, msg->text, msg->sizebox);
 }
 
@@ -389,7 +391,7 @@ void osd_render()
             msg->frames = 0;
         }
 
-		//printf("OSD render %p\n", msg);
+		//printf("OSD render %p: %s\n", msg, msg->text);
         // offset y depending on how many other messages are in the same corner
         float fStartOffset;
         if (msg->corner >= OSD_MIDDLE_LEFT && msg->corner <= OSD_MIDDLE_RIGHT) {

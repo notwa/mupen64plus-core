@@ -24,14 +24,14 @@
 #include <string.h>
 #include "OGLFT.h"
 
-int wstrlen(const wchar_t * s) 
+int wstrlen(const wchar_t * s)
 {
     int r = 0;
     while (*s++) r++;
     return r;
 }
 
-namespace OGLFT 
+namespace OGLFT
 {
     FT_Library ft_library;
     bool Init_FT(void)
@@ -54,7 +54,7 @@ namespace OGLFT
         valid_ = true;
         FT_Face ft_face;
         FT_Error error = FT_New_Face(ft_library, filename, 0, &ft_face);
-        if(error != 0) 
+        if(error != 0)
         {
             valid_ = false;
             return;
@@ -149,7 +149,7 @@ namespace OGLFT
     // Note: Changing the point size also clears the display list cache
     void Face::setPointSize (float point_size)
     {
-        if(point_size != point_size_) 
+        if(point_size != point_size_)
         {
             point_size_ = point_size;
             clearCaches();
@@ -160,7 +160,7 @@ namespace OGLFT
      // Note: Changing the resolution also clears the display list cache
     void Face::setResolution (FT_UInt resolution)
     {
-        if(resolution != resolution_) 
+        if(resolution != resolution_)
         {
             resolution_ = resolution;
             clearCaches();
@@ -171,7 +171,7 @@ namespace OGLFT
     // Note: Changing the background color also clears the display list cache.
     void Face::setBackgroundColor (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
     {
-        if(background_color_[R] != red||background_color_[G] != green||background_color_[B] != blue||background_color_[A] != alpha) 
+        if(background_color_[R] != red||background_color_[G] != green||background_color_[B] != blue||background_color_[A] != alpha)
         {
             background_color_[R] = red;
             background_color_[G] = green;
@@ -183,7 +183,7 @@ namespace OGLFT
     // Note: Changing the foreground color also clears the display list cache.
     void Face::setForegroundColor (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
     {
-        if(foreground_color_[R] != red||foreground_color_[G] != green||foreground_color_[B] != blue||foreground_color_[A] != alpha) 
+        if(foreground_color_[R] != red||foreground_color_[G] != green||foreground_color_[B] != blue||foreground_color_[A] != alpha)
         {
             foreground_color_[R] = red;
             foreground_color_[G] = green;
@@ -213,7 +213,7 @@ namespace OGLFT
     // Note: Changing the string rotation angle clears the display list cache
     void Face::setStringRotation (GLfloat string_rotation)
     {
-        if(string_rotation != string_rotation_) 
+        if(string_rotation != string_rotation_)
         {
             string_rotation_ = string_rotation;
 
@@ -221,12 +221,12 @@ namespace OGLFT
 
             // Note that this affects ALL glyphs accessed through
             // the Face, both the vector and the raster glyphs. Very nice!
-            if (string_rotation_ != 0) 
+            if (string_rotation_ != 0)
             {
                 float angle;
-                if (string_rotation_<0) 
+                if (string_rotation_<0)
                     angle = 360.0f - fmod(fabs(string_rotation_), 360.f);
-                else 
+                else
                     angle = fmod(string_rotation_, 360.f);
 
                 FT_Matrix rotation_matrix;
@@ -251,13 +251,13 @@ namespace OGLFT
         unsigned int f;
         FT_UInt glyph_index = 0;
 
-        for(f=0; f<faces_.size(); f++) 
+        for(f=0; f<faces_.size(); f++)
         {
             glyph_index = FT_Get_Char_Index(faces_[f].face_, c);
             if(glyph_index != 0) break;
         }
 
-        if(f<faces_.size() && glyph_index != rotation_reference_glyph_) 
+        if(f<faces_.size() && glyph_index != rotation_reference_glyph_)
         {
             FT_Error error = FT_Load_Glyph(faces_[f].face_, glyph_index, FT_LOAD_DEFAULT);
 
@@ -266,7 +266,7 @@ namespace OGLFT
             rotation_reference_glyph_ = glyph_index;
             rotation_reference_face_ = faces_[f].face_;
             setRotationOffset();
-            
+
             clearCaches();
         }
     }
@@ -276,11 +276,11 @@ namespace OGLFT
         BBox bbox;
         char c;
 
-        if((c = *s++) != 0) 
+        if((c = *s++) != 0)
         {
             bbox = measure((unsigned char)c);
 
-            for(c = *s; c != 0; c = *++s) 
+            for(c = *s; c != 0; c = *++s)
             {
                 BBox char_bbox = measure((unsigned char)c);
                 bbox += char_bbox;
@@ -305,14 +305,14 @@ namespace OGLFT
     {
         BBox bbox;
 
-        for(char c = *s; c != 0; c = *++s) 
+        for(char c = *s; c != 0; c = *++s)
         {
             BBox char_bbox;
 
             unsigned int f;
             FT_UInt glyph_index = 0;
 
-            for(f=0; f<faces_.size(); f++) 
+            for(f=0; f<faces_.size(); f++)
             {
                 glyph_index = FT_Get_Char_Index(faces_[f].face_, c);
                 if(glyph_index != 0) break;
@@ -346,7 +346,7 @@ namespace OGLFT
         BBox bbox;
         int i;
 
-        if(wstrlen(s) > 0) 
+        if(wstrlen(s) > 0)
         {
             bbox = measure(s[0]);
             for(i = 1; i < wstrlen(s); i++)
@@ -386,13 +386,13 @@ namespace OGLFT
             unsigned int f;
             FT_UInt glyph_index = 0;
 
-            for(f=0; f<faces_.size(); f++) 
+            for(f=0; f<faces_.size(); f++)
             {
                 glyph_index = FT_Get_Char_Index(faces_[f].face_, s[i]);
                 if(glyph_index != 0) break;
             }
 
-            if(glyph_index == 0) 
+            if(glyph_index == 0)
             {
                 continue;
             }
@@ -417,12 +417,12 @@ namespace OGLFT
 
         return bbox;
     }
-    
+
     // Measure the bounding box as if the (latin1) string were not rotated
     BBox Face::measure_nominal (const char* s)
     {
         if(string_rotation_ == 0.) return measure(s);
-    
+
         for(unsigned int f=0; f<faces_.size(); f++) FT_Set_Transform(faces_[f].face_, 0, 0);
 
         BBox bbox = measure(s);
@@ -430,7 +430,7 @@ namespace OGLFT
         float angle;
         if(string_rotation_<0.)
             angle = 360.0f - fmod(fabs(string_rotation_), 360.f);
-        else 
+        else
             angle = fmod(string_rotation_, 360.f);
 
         FT_Matrix rotation_matrix;
@@ -458,9 +458,9 @@ namespace OGLFT
         BBox bbox = measure(s);
 
         float angle;
-        if(string_rotation_<0.0) 
+        if(string_rotation_<0.0)
             angle = 360.0f - fmod(fabs(string_rotation_), 360.f);
-        else 
+        else
             angle = fmod(string_rotation_, 360.f);
 
         FT_Matrix rotation_matrix;
@@ -501,6 +501,7 @@ namespace OGLFT
 
         GLuint dlist = compileGlyph(faces_[f].face_, glyph_index);
         glyph_dlists_[ c ] = dlist;
+		//printf("compile '%c' -> %d\n", c, dlist);
 
         return dlist;
     }
@@ -545,6 +546,7 @@ namespace OGLFT
 
         for(char c = *s; c != 0; c = *++s)
         {
+			//printf("draw(\"%s\") '%c'\n", s, c);
             if(character_display_list != character_display_lists_.end())
             {
                 glCallList(*character_display_list);
@@ -583,9 +585,13 @@ namespace OGLFT
         // See if we've done it already
         GDLCI fgi = glyph_dlists_.find(c);
 
-        if(fgi != glyph_dlists_.end()) 
+        if(fgi != glyph_dlists_.end())
         {
-            glCallList(fgi->second);
+			/* double pos[4];
+			glGetDoublev(GL_CURRENT_RASTER_POSITION, pos);
+			printf("call list %d for '%c', pos %f, %f, %f, %f\n",
+				fgi->second, c, pos[0], pos[1], pos[2], pos[3]); */
+			glCallList(fgi->second);
             return;
         }
 
@@ -616,7 +622,7 @@ namespace OGLFT
         // See if we've done it already
         GDLCI fgi = glyph_dlists_.find(c);
 
-        if(fgi != glyph_dlists_.end()) 
+        if(fgi != glyph_dlists_.end())
         {
             glCallList(fgi->second);
             return;
@@ -645,6 +651,7 @@ namespace OGLFT
     // matrix is modified by the glyph advance.
     void Face::draw (GLfloat x, GLfloat y, unsigned char c)
     {
+		//printf("draw(%f, %f, '%c')\n", x, y, c);
         glTranslatef(x, y, 0.);
 
         glColor4f(foreground_color_[R], foreground_color_[G], foreground_color_[B], foreground_color_[A]);
@@ -658,6 +665,7 @@ namespace OGLFT
     // matrix is modified by the glyph advance.
     void Face::draw (GLfloat x, GLfloat y, GLfloat z, unsigned char c)
     {
+		//printf("draw(%f, %f, %f, '%c')\n", x, y, z, c);
         glTranslatef(x, y, z);
 
         glColor4f(foreground_color_[R], foreground_color_[G], foreground_color_[B], foreground_color_[A]);
@@ -701,12 +709,11 @@ namespace OGLFT
         // sizebox is xmin,ymin, xmax,ymax
         if(!advance_) glPushMatrix();
 
-        if(horizontal_justification_ != ORIGIN || vertical_justification_ != BASELINE)
-        {
+        if(horizontal_justification_ != ORIGIN
+		|| vertical_justification_ != BASELINE) {
             glPushMatrix();
 
             GLfloat dx = 0, dy = 0;
-
             switch (horizontal_justification_)
             {
                 case LEFT:   dx = -sizebox[0] + 1; break;
@@ -729,15 +736,16 @@ namespace OGLFT
         }
 
         glTranslatef(x, y, 0.);
-
-        glColor4f(foreground_color_[R], foreground_color_[G], foreground_color_[B], foreground_color_[A]);
-
+        glColor4f(foreground_color_[R], foreground_color_[G],
+			foreground_color_[B], foreground_color_[A]);
         glRasterPos3i(0, 0, 0);
 
+		//printf("draw(%f, %f, \"%s\", (%f, %f, %f, %f))\n", x, y, s,
+		//	sizebox[0], sizebox[1], sizebox[2], sizebox[3]);
         draw(s);
-
-        if(horizontal_justification_ != ORIGIN || vertical_justification_ != BASELINE) glPopMatrix();
-
+        if(horizontal_justification_ != ORIGIN
+		|| vertical_justification_ != BASELINE)
+			glPopMatrix();
         if(!advance_) glPopMatrix();
     }
 
@@ -988,7 +996,7 @@ namespace OGLFT
     BBox Raster::measure (unsigned char c)
     {
         BBox bbox;
-        
+
         // For starters, just get the unscaled glyph bounding box
         unsigned int f;
         FT_UInt glyph_index = 0;
@@ -1015,7 +1023,7 @@ namespace OGLFT
 
         bbox = ft_bbox;
         bbox.advance_ = faces_[f].face_->glyph->advance;
-    
+
         // In order to be accurate regarding the placement of text not
         // aligned at the glyph's origin (CENTER/MIDDLE), the bounding box
         // of the raster format has to be projected back into the
@@ -1051,7 +1059,7 @@ namespace OGLFT
     BBox Raster::measure (wchar_t c)
     {
         BBox bbox;
-        
+
         // For starters, just get the unscaled glyph bounding box
         unsigned int f;
         FT_UInt glyph_index = 0;
