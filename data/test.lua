@@ -52,6 +52,8 @@ local function vi_callback()
 			position = "topRight",
 			color    = 0xFF0000,
 			static   = true,
+			xoffset  = 16,
+			yoffset  = 16,
 		}
 	end
 
@@ -72,6 +74,13 @@ local function vi_callback()
 			--due to your kart lifting off and taking flight on every hill.
 			m64p.memory:write(0x800F6BA4, 'float', 500)
 		end
+
+		--add extra character to work around OSD bug.
+		--using a visible character we can see that it's not actually
+		--disappearing but just changing colour for some reason.
+		--also it doesn't clear between frames, so you get overlapping numbers.
+		--such a buggy system...
+		msg.text = ('xframe %d'):format(vi_count);
 	end
 
 	vi_count = vi_count + 1

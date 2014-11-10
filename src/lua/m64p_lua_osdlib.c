@@ -10,9 +10,15 @@ enum {
 static const char *osdFieldName[] = {/* "header", */ NULL};
 
 enum {
+	MSG_FIELD_TEXT,
+	MSG_FIELD_POSITION,
+	MSG_FIELD_COLOR,
+	MSG_FIELD_STATIC,
 	NUM_MSG_FIELDS
 };
-static const char *msgFieldName[] = {NULL};
+static const char *msgFieldName[] = {
+	"text", "position", "color", "static", NULL};
+
 
 //osd_corner
 static const char *osdCornerName[] = {
@@ -103,6 +109,9 @@ static int osd_meta_index(lua_State *L) {
 
 
 static int message_meta_index(lua_State *L) {
+	osd_message_t *msg = *(osd_message_t**)luaL_checkudata(
+		L, 1, OSD_MESSAGE_METATABLE);
+
 	lua_getfield(L, LUA_REGISTRYINDEX, "osd_msg_fields"); //-1: fields
 	lua_pushvalue(L, 2); //-1: key, -2: fields
 	lua_gettable(L, -2); //-1: val, -2: fields
@@ -110,14 +119,82 @@ static int message_meta_index(lua_State *L) {
 	lua_pop(L, 2);
 
 	switch(field) {
-		//case OSD_FIELD_xxx:
-		//	break;
+		case MSG_FIELD_TEXT:
+			lua_pushstring(L, msg->text);
+			break;
+
+		case MSG_FIELD_POSITION:
+			lua_getfield(L, LUA_REGISTRYINDEX, "osd_corners"); //-1: corners
+			lua_pushinteger(L, msg->corner); //-1: val, -2: corners
+			lua_gettable(L, -2); //-1: name, -2: corners
+			lua_remove(L, -2); //-1: name
+			break;
+
+		case MSG_FIELD_COLOR:
+			lua_pushinteger(L,  ((int)msg->color[B] & 0xFF)
+				             | (((int)msg->color[G] & 0xFF) << 8)
+				             | (((int)msg->color[G] & 0xFF) << 16));
+			break;
+
+		case MSG_FIELD_STATIC:
+			lua_pushboolean(L, msg->state == OSD_DISPLAY
+				&& msg->timeout[OSD_DISPLAY] == OSD_INFINITE_TIMEOUT);
+			break;
 
 		default:
 			lua_pushnil(L);
 	}
 
 	return 1;
+}
+
+
+static int message_meta_newindex(lua_State *L) {
+	osd_message_t *msg = *(osd_message_t**)luaL_checkudata(
+		L, 1, OSD_MESSAGE_METATABLE);
+
+	lua_getfield(L, LUA_REGISTRYINDEX, "osd_msg_fields"); //-1: fields
+	lua_pushvalue(L, 2); //-1: key, -2: fields
+	lua_gettable(L, -2); //-1: val, -2: fields
+	int field = luaL_optinteger(L, -1, -1);
+	lua_pop(L, 2);
+
+	switch(field) {
+		case MSG_FIELD_TEXT:
+			osd_update_message(msg, "%s", luaL_checkstring(L, 3));
+			break;
+
+		case MSG_FIELD_POSITION:
+			lua_getfield(L, LUA_REGISTRYINDEX, "osd_corners"); //-1: corners
+			lua_pushvalue(L, 3); //-1: name, -2: corners
+			lua_gettable(L, -2); //-1: val, -2: corners
+			if(lua_isnil(L, -1)) return luaL_error(L, "Invalid position");
+			msg->corner = lua_tointeger(L, -1);
+			lua_pop(L, 2);
+			break;
+
+		case MSG_FIELD_COLOR: {
+			unsigned int color = luaL_checkinteger(L, 3);
+			msg->color[B] =  color        & 0xFF;
+			msg->color[G] = (color >>  8) & 0xFF;
+			msg->color[R] = (color >> 16) & 0xFF;
+			break;
+		}
+
+		case MSG_FIELD_STATIC:
+			if(lua_toboolean(L, 3)) osd_message_set_static(msg);
+			else msg->timeout[OSD_DISPLAY] = 60;
+			break;
+
+		default:
+			if(lua_tostring(L, 2))
+				return luaL_error(L, "Cannot assign to field '%s' in message",
+					lua_tostring(L, 2));
+			else return luaL_error(L, "Cannot assign to field (%s) in message",
+				luaL_typename(L, 2));
+	}
+
+	return 0;
 }
 
 
@@ -138,8 +215,9 @@ void m64p_lua_load_osdlib(lua_State *L) {
 
 	//message metatable
 	static const luaL_Reg meta_message[] = {
-		{"__index", message_meta_index},
-		{"__gc",    message_meta_gc},
+		{"__index",    message_meta_index},
+		{"__newindex", message_meta_newindex},
+		{"__gc",       message_meta_gc},
 		{NULL, NULL}
 	};
 	luaL_newmetatable(L, OSD_MESSAGE_METATABLE); //-1: meta
