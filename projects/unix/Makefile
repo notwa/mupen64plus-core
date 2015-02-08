@@ -387,7 +387,7 @@ ifneq ($(SHAREDIR),)
 endif
 ifeq ($(LUA), 1)
   CFLAGS += -DWITH_LUA
-  LDLIBS += -llua
+  LDLIBS += -L../../src/lua/lua-5.3.0/src -llua
 endif
 
 # set installation options

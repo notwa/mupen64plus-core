@@ -1,9 +1,9 @@
 #ifndef __M64P_LUA_H__
 #define __M64P_LUA_H__
 
-#include <lua.h>
-#include <lualib.h>
-#include <lauxlib.h>
+#include "lua/lua-5.3.0/src/lua.h"
+#include "lua/lua-5.3.0/src/lualib.h"
+#include "lua/lua-5.3.0/src/lauxlib.h"
 #include <stdlib.h>
 #include <string.h>
 

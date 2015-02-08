@@ -1,0 +1,2 @@
+This is the standard Lua 5.3.0 source package with the following modifications:
+-src/Makefile: -fPIC added to CFLAGS.
