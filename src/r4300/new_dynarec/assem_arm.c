@@ -18,6 +18,7 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include "main/main.h"
 #include "../cp0.h"
 
 extern int cycle_count;
@@ -1032,6 +1033,12 @@ static void emit_adds(int rs1,int rs2,int rt)
   output_w32(0xe0900000|rd_rn_rm(rt,rs1,rs2));
 }
 
+static void emit_adc(int rs1,int rs2,int rt)
+{
+  assem_debug("adc %s,%s,%s",regname[rt],regname[rs1],regname[rs2]);
+  output_w32(0xe0a00000|rd_rn_rm(rt,rs1,rs2));
+}
+
 static void emit_adcs(int rs1,int rs2,int rt)
 {
   assem_debug("adcs %s,%s,%s",regname[rt],regname[rs1],regname[rs2]);
@@ -1292,7 +1299,6 @@ static void emit_adcimm(u_int rs,int imm,u_int rt)
 
 static void emit_rscimm(int rs,int imm,u_int rt)
 {
-  assert(0);
   u_int armval, ret;
   ret = genimm(imm,&armval);
   assert(ret);
@@ -1743,6 +1749,18 @@ static void emit_jno(int a)
 }
 
 static void emit_jcc(int a)
+{
+  assem_debug("bcc %x",a);
+  u_int offset=genjmp(a);
+  output_w32(0x3a000000|offset);
+}
+static void emit_jae(int a)
+{
+  assem_debug("bcs %x",a);
+  u_int offset=genjmp(a);
+  output_w32(0x2a000000|offset);
+}
+static void emit_jb(int a)
 {
   assem_debug("bcc %x",a);
   u_int offset=genjmp(a);
@@ -3280,7 +3298,7 @@ static void loadlr_assemble_arm(int i,struct regstat *i_regs)
   }
   if (opcode[i]==0x22||opcode[i]==0x26) { // LWL/LWR
     if(!c||memtarget) {
-      //emit_readword_indexed((int)rdram-0x80000000,temp2,temp2);
+      //emit_readword_indexed((int)g_rdram-0x80000000,temp2,temp2);
       emit_readword_indexed_tlb(0,temp2,map,temp2);
       if(jaddr) add_stub(LOADW_STUB,jaddr,(int)out,i,temp2,(int)i_regs,ccadj[i],reglist);
     }
@@ -3305,8 +3323,8 @@ static void loadlr_assemble_arm(int i,struct regstat *i_regs)
   if (opcode[i]==0x1A||opcode[i]==0x1B) { // LDL/LDR
     int temp2h=get_reg(i_regs->regmap,FTEMP|64);
     if(!c||memtarget) {
-      //if(th>=0) emit_readword_indexed((int)rdram-0x80000000,temp2,temp2h);
-      //emit_readword_indexed((int)rdram-0x7FFFFFFC,temp2,temp2);
+      //if(th>=0) emit_readword_indexed((int)g_rdram-0x80000000,temp2,temp2h);
+      //emit_readword_indexed((int)g_rdram-0x7FFFFFFC,temp2,temp2);
       emit_readdword_indexed_tlb(0,temp2,map,temp2h,temp2);
       if(jaddr) add_stub(LOADD_STUB,jaddr,(int)out,i,temp2,(int)i_regs,ccadj[i],reglist);
     }
@@ -4153,7 +4171,6 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
     {
       if(opcode2[i]==0x1C) // DMULT
       {
-        assert(opcode2[i]!=0x1C);
         signed char m1h=get_reg(i_regs->regmap,rs1[i]|64);
         signed char m1l=get_reg(i_regs->regmap,rs1[i]);
         signed char m2h=get_reg(i_regs->regmap,rs2[i]|64);
@@ -4162,15 +4179,16 @@ static void multdiv_assemble_arm(int i,struct regstat *i_regs)
         assert(m2h>=0);
         assert(m1l>=0);
         assert(m2l>=0);
-        emit_pushreg(m2h);
-        emit_pushreg(m2l);
-        emit_pushreg(m1h);
-        emit_pushreg(m1l);
+        save_regs(0x100f);
+        if(m1l!=0) emit_mov(m1l,0);
+        if(m1h==0) emit_readword((int)&dynarec_local,1);
+        else if(m1h>1) emit_mov(m1h,1);
+        if(m2l<2) emit_readword((int)&dynarec_local+m2l*4,2);
+        else if(m2l>2) emit_mov(m2l,2);
+        if(m2h<3) emit_readword((int)&dynarec_local+m2h*4,3);
+        else if(m2h>3) emit_mov(m2h,3);
         emit_call((int)&mult64);
-        emit_popreg(m1l);
-        emit_popreg(m1h);
-        emit_popreg(m2l);
-        emit_popreg(m2h);
+        restore_regs(0x100f);
         signed char hih=get_reg(i_regs->regmap,HIREG|64);
         signed char hil=get_reg(i_regs->regmap,HIREG);
         if(hih>=0) emit_loadreg(HIREG|64,hih);
@@ -4417,7 +4435,7 @@ static void wb_valid(signed char pre[],signed char entry[],u_int dirty_pre,u_int
       if(((~u)>>(reg&63))&1) {
         if(reg>0) {
           if(((dirty_pre&~dirty)>>hr)&1) {
-            if(reg>0&&reg<34) {
+            if(reg>0&&reg<36) {
               emit_storereg(reg,hr);
               if( ((is32_pre&~uu)>>reg)&1 ) {
                 emit_sarimm(hr,31,HOST_TEMPREG);
@@ -4537,7 +4555,7 @@ static void arch_init() {
   jump_table_symbols[18] = (int) cached_interpreter_table.TLBP;
 
   #ifdef RAM_OFFSET
-  ram_offset=((int)rdram-(int)0x80000000)>>2;
+  ram_offset=((int)g_rdram-(int)0x80000000)>>2;
   #endif
 
   // Trampolines for jumps >32M

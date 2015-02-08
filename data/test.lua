@@ -42,27 +42,26 @@ end
 local msg
 local vi_count = 0
 local function vi_callback()
-	if vi_count == 4 then
+	vi_count = vi_count + 1
+	if vi_count == 1 then
 		print("state:", m64p.state)
 		--m64p.state = 'paused'
 		m64p.audioVolume = 0.2;
+		if m64p.rom.settings.goodname ~= "Mario Kart 64 (U) [!]" then
+			m64p:unregisterCallback('vi', vi_callback)
+			return
+		end
 
 		msg = m64p.osd.newMessage {
-			text     = "Hello",
+			text     = "",
 			position = "topRight",
 			color    = 0xFF0000,
 			static   = true,
 			xoffset  = 16,
 			yoffset  = 16,
 		}
-	end
 
-	if vi_count == 0 then
-		if m64p.rom.settings.goodname ~= "Mario Kart 64 (U) [!]" then
-			m64p:unregisterCallback('vi', vi_callback)
-		end
-
-	elseif vi_count >= 4 then
+	elseif vi_count >= 5 then
 		--hexdump(m64p.memory:read(0x80000000, 256))
 		--print("speed:", m64p.memory:read(0x800F6BA4, 'float'))
 
@@ -72,18 +71,16 @@ local function vi_callback()
 			--change player 1 max speed to ~110km/h (500 units/sec up from ~294)
 			--you can always go higher, but the game starts to get unplayable
 			--due to your kart lifting off and taking flight on every hill.
-			m64p.memory:write(0x800F6BA4, 'float', 500)
+			m64p.memory:write(0x800F6BA4, 'float', 235)
+
+			msg.text = ('_%1.0f km/h'):format(
+				m64p.memory:read(0x800F6A2C, 'float'))
+
+			--150 =  20km/h
+			--235 = ~40km/h
+			--294 =  60km/h
 		end
-
-		--add extra character to work around OSD bug.
-		--using a visible character we can see that it's not actually
-		--disappearing but just changing colour for some reason.
-		--also it doesn't clear between frames, so you get overlapping numbers.
-		--such a buggy system...
-		msg.text = ('xframe %d'):format(vi_count);
 	end
-
-	vi_count = vi_count + 1
 end
 
 m64p:registerCallback('vi', vi_callback)

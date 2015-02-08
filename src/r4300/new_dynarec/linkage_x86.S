@@ -512,7 +512,7 @@ jump_syscall:
 	mov	%eax, g_cp0_regs+56 /* EPC */
 	push    $0x80000180
 	call	get_addr_ht
-	mov	$16, %esp
+	add	$16, %esp
 	jmp	*%eax
 	.size	jump_syscall, .-jump_syscall
 
@@ -676,7 +676,7 @@ invalidate_block_call:
 write_rdram_new:
 	mov	address, %edi
 	mov	word, %ecx
-	mov	%ecx, rdram-0x80000000(%edi)
+	mov	%ecx, g_rdram-0x80000000(%edi)
 	jmp	.E12
 	.size	write_rdram_new, .-write_rdram_new
 
@@ -687,7 +687,7 @@ write_rdramb_new:
 	mov	address, %edi
 	xor	$3, %edi
 	movb	cpu_byte, %cl
-	movb	%cl, rdram-0x80000000(%edi)
+	movb	%cl, g_rdram-0x80000000(%edi)
 	jmp	.E12
 	.size	write_rdramb_new, .-write_rdramb_new
 
@@ -698,7 +698,7 @@ write_rdramh_new:
 	mov	address, %edi
 	xor	$2, %edi
 	movw	hword, %cx
-	movw	%cx, rdram-0x80000000(%edi)
+	movw	%cx, g_rdram-0x80000000(%edi)
 	jmp	.E12
 	.size	write_rdramh_new, .-write_rdramh_new
 
@@ -709,8 +709,8 @@ write_rdramd_new:
 	mov	address, %edi
 	mov	dword+4, %ecx
 	mov	dword, %edx
-	mov	%ecx, rdram-0x80000000(%edi)
-	mov	%edx, rdram-0x80000000+4(%edi)
+	mov	%ecx, g_rdram-0x80000000(%edi)
+	mov	%edx, g_rdram-0x80000000+4(%edi)
 	jmp	.E12
 	.size	write_rdramd_new, .-write_rdramd_new
 

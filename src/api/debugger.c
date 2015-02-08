@@ -31,16 +31,22 @@
 #include "callbacks.h"
 #include "debugger.h"
 
+#include "ai/ai_controller.h"
 #include "debugger/dbg_types.h"
 #include "debugger/dbg_breakpoints.h"
 #include "debugger/dbg_decoder.h"
 #include "debugger/dbg_memory.h"
 #include "debugger/debugger.h"
+#include "main/main.h"
 #include "memory/memory.h"
+#include "pi/pi_controller.h"
 #include "r4300/r4300.h"
 #include "r4300/cp0.h"
 #include "r4300/cp1.h"
 #include "r4300/tlb.h"
+#include "ri/ri_controller.h"
+#include "si/si_controller.h"
+#include "vi/vi_controller.h"
 
 unsigned int op;
 
@@ -212,17 +218,17 @@ EXPORT void * CALL DebugMemGetPointer(m64p_dbg_memptr_type mem_ptr_type)
     switch (mem_ptr_type)
     {
         case M64P_DBG_PTR_RDRAM:
-            return rdram;
+            return g_rdram;
         case M64P_DBG_PTR_PI_REG:
-            return &pi_register;
+            return g_pi.regs;
         case M64P_DBG_PTR_SI_REG:
-            return &si_register;
+            return g_si.regs;
         case M64P_DBG_PTR_VI_REG:
-            return &vi_register;
+            return g_vi.regs;
         case M64P_DBG_PTR_RI_REG:
-            return &ri_register;
+            return g_ri.regs;
         case M64P_DBG_PTR_AI_REG:
-            return &ai_register;
+            return g_ai.regs;
         default:
             DebugMessage(M64MSG_ERROR, "Bug: DebugMemGetPointer() called with invalid m64p_dbg_memptr_type");
             return NULL;
