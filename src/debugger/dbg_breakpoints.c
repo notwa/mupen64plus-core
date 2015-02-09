@@ -63,7 +63,7 @@ int add_breakpoint_struct(m64p_breakpoint *newbp)
         BPT_CLEAR_FLAG(g_Breakpoints[g_NumBreakpoints], M64P_BKP_FLAG_ENABLED);
         enable_breakpoint( g_NumBreakpoints );
     }
-    
+
     return g_NumBreakpoints++;
 }
 
@@ -71,7 +71,7 @@ void enable_breakpoint( int bpt)
 {
     m64p_breakpoint *curBpt = g_Breakpoints + bpt;
     uint64 bptAddr;
-    
+
     if (BPT_CHECK_FLAG((*curBpt), M64P_BKP_FLAG_READ)) {
         for (bptAddr = curBpt->address; bptAddr <= (curBpt->endaddr | 0xFFFF); bptAddr+=0x10000)
             if (lookup_breakpoint((uint32) bptAddr & 0xFFFF0000, 0x10000, M64P_BKP_FLAG_ENABLED | M64P_BKP_FLAG_READ) == -1)
@@ -83,7 +83,7 @@ void enable_breakpoint( int bpt)
             if (lookup_breakpoint((uint32) bptAddr & 0xFFFF0000, 0x10000, M64P_BKP_FLAG_ENABLED | M64P_BKP_FLAG_WRITE) == -1)
                 activate_memory_break_write((uint32) bptAddr);
     }
-    
+
     BPT_SET_FLAG(g_Breakpoints[bpt], M64P_BKP_FLAG_ENABLED);
 }
 
@@ -112,13 +112,13 @@ void disable_breakpoint( int bpt )
 void remove_breakpoint_by_num( int bpt )
 {
     int curBpt;
-    
+
     if (BPT_CHECK_FLAG(g_Breakpoints[bpt], M64P_BKP_FLAG_ENABLED))
         disable_breakpoint( bpt );
 
     for(curBpt=bpt+1; curBpt<g_NumBreakpoints; curBpt++)
         g_Breakpoints[curBpt-1]=g_Breakpoints[curBpt];
-    
+
     g_NumBreakpoints--;
 }
 
@@ -150,20 +150,20 @@ int lookup_breakpoint( uint32 address, uint32 size, uint32 flags)
 {
     int i;
     uint64 endaddr = ((uint64)address) + ((uint64)size) - 1;
-    
+
     for( i=0; i < g_NumBreakpoints; i++)
     {
         if((g_Breakpoints[i].flags & flags) == flags)
         {
             if(g_Breakpoints[i].endaddr < g_Breakpoints[i].address)
             {
-                if((endaddr >= g_Breakpoints[i].address) || 
+                if((endaddr >= g_Breakpoints[i].address) ||
                     (address <= g_Breakpoints[i].endaddr))
                         return i;
             }
             else // endaddr >= address
             {
-                if((endaddr >= g_Breakpoints[i].address) && 
+                if((endaddr >= g_Breakpoints[i].address) &&
                     (address <= g_Breakpoints[i].endaddr))
                         return i;
             }
@@ -192,10 +192,15 @@ int check_breakpoints_on_mem_access( uint32 pc, uint32 address, uint32 size, uin
         {
             if (BPT_CHECK_FLAG(g_Breakpoints[bpt], M64P_BKP_FLAG_LOG))
                 log_breakpoint(pc, flags, address);
-            
+#ifdef WITH_LUA
+			//let Lua take care of changing the run state
+			m64p_lua_handle_breakpoint(pc, bpt, flags);
+#else
             run = 0;
-            update_debugger(pc);
-        
+#endif
+            update_debugger_ui(pc);
+			previousPC = pc;
+
             return bpt;
         }
     }

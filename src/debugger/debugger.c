@@ -63,31 +63,47 @@ void destroy_debugger()
 
 //]=-=-=-=-=-=-=-=-=-=-=-=-=[ Mise-a-Jour Debugger ]=-=-=-=-=-=-=-=-=-=-=-=-=[
 
-void update_debugger(uint32 pc)
-// Update debugger state and display.
-// Should be called after each R4300 instruction
-// Checks for breakpoint hits on PC
+
+void check_exec_breakpoints(uint32 pc)
 {
-    int bpt;
+	int bpt;
 
-    if(run!=0) {//check if we hit a breakpoint
-        bpt = check_breakpoints(pc);
-        if( bpt!=-1 ) {
-            run = 0;
+	if(run == 0) return;
+	//check if we hit a breakpoint
+	bpt = check_breakpoints(pc);
+	if(bpt < 0) return;
 
-            if (BPT_CHECK_FLAG(g_Breakpoints[bpt], M64P_BKP_FLAG_LOG))
-                log_breakpoint(pc, M64P_BKP_FLAG_EXEC, 0);
-        }
-    }
+#ifdef WITH_LUA
+	//let Lua take care of changing the run state
+	m64p_lua_handle_breakpoint(pc, bpt, M64P_BKP_FLAG_EXEC);
+#else
+	run = 0;
+#endif
+	if (BPT_CHECK_FLAG(g_Breakpoints[bpt], M64P_BKP_FLAG_LOG))
+		log_breakpoint(pc, M64P_BKP_FLAG_EXEC, 0);
+}
 
-    if(run!=2) {
-        DebuggerCallback(DEBUG_UI_UPDATE, pc);  /* call front-end to notify user interface to update */
+
+void update_debugger_ui(uint32 pc)
+{
+	if(run!=2) {
+        /* call front-end to notify user interface to update */
+		DebuggerCallback(DEBUG_UI_UPDATE, pc);
     }
     if(run==0) {
         // The emulation thread is blocked until a step call via the API.
         SDL_SemWait(sem_pending_steps);
     }
+}
 
+
+void update_debugger(uint32 pc)
+// Update debugger state and display.
+// Should be called after each R4300 instruction
+// Checks for breakpoint hits on PC
+{
+	check_exec_breakpoints(pc);
+	update_debugger_ui(pc);
     previousPC = pc;
 }
 

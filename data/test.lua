@@ -71,10 +71,13 @@ local function vi_callback()
 			--change player 1 max speed to ~110km/h (500 units/sec up from ~294)
 			--you can always go higher, but the game starts to get unplayable
 			--due to your kart lifting off and taking flight on every hill.
-			m64p.memory:write(0x800F6BA4, 'float', 235)
+			--the actual conversion from these numbers to what the in-game
+			--speedometer shows is odd and seems to be nonlinear. This is
+			--a rough approximation.
+			m64p.memory:write(0x800F6BA4, 'float', 500)
 
 			msg.text = ('_%1.0f km/h'):format(
-				m64p.memory:read(0x800F6A2C, 'float'))
+				m64p.memory:read(0x800F6A2C, 'float') / 2.7)
 
 			--150 =  20km/h
 			--235 = ~40km/h

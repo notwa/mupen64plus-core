@@ -12,6 +12,12 @@
 #include "api/m64p_frontend.h"
 #include "memory/memory.h"
 #include "main/rom.h"
+#ifdef DBG
+#include "api/m64p_debugger.h"
+#include "debugger/dbg_types.h"
+#include "debugger/debugger.h"
+#include "debugger/dbg_breakpoints.h"
+#endif
 
 void m64p_lua_load_libs(lua_State *L);
 
@@ -48,5 +54,8 @@ const char *enumName);
 void m64p_lua_load_memlib(lua_State *L);
 void m64p_lua_load_romlib(lua_State *L);
 void m64p_lua_load_osdlib(lua_State *L);
+#ifdef DBG
+void m64p_lua_load_debuglib(lua_State *L);
+#endif
 
 #endif //__M64P_LUA_H__

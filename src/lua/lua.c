@@ -148,3 +148,16 @@ void m64p_lua_render_callback() {
 void m64p_lua_vi_callback() {
 	if(g_luaState) run_callbacks("vi_callbacks", g_luaState);
 }
+
+
+#ifdef DBG
+void m64p_lua_handle_breakpoint(uint32_t pc, int bpt, unsigned int event) {
+	//pc: the breakpoint address
+	//bpt: the breakpoint's index
+	//event: one of M64P_BKP_FLAG_EXEC, M64P_BKP_FLAG_READ, M64P_BKP_FLAG_WRITE
+	//TODO: think up a clever way to bind callbacks to each breakpoint.
+	//we can't rely on bpt because it can change when breakpoints are added
+	//or removed.
+	DebugSetRunState(0);
+}
+#endif

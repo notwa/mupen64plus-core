@@ -513,6 +513,9 @@ ifeq ($(LUA), 1)
 	$(SRCDIR)/lua/m64p_lua_memlib.c \
 	$(SRCDIR)/lua/m64p_lua_romlib.c \
 	$(SRCDIR)/lua/m64p_lua_osdlib.c
+	ifeq ($(DEBUGGER), 1)
+		SOURCE += $(SRCDIR)/lua/m64p_lua_debuglib.c
+	endif
 endif
 
 # source files for optional features

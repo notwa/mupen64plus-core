@@ -287,7 +287,7 @@ void m64p_lua_load_libs(lua_State *L) {
 	//begin at 1 and don't have a "count" or "last" value
 	lua_createtable(L, 0, 6);
 	for(i=1; i<=M64EMU_PAUSED; i++) {
-		printf("set emu state '%s' = %d\n", emuStateName[i-1], i);
+		//printf("set emu state '%s' = %d\n", emuStateName[i-1], i);
 		LUA_SET_FIELD(L, -1, emuStateName[i-1], integer, i);
 		lua_pushstring(L, emuStateName[i-1]);
 		lua_rawseti(L, -2, i);
@@ -333,11 +333,13 @@ void m64p_lua_load_libs(lua_State *L) {
 	};
 	luaL_newlib(L, funcs_m64p); //-1: m64p
 
-
 	//load m64p submodules into m64p table
-	m64p_lua_load_memlib(L); lua_setfield(L, -2, "memory");
-	m64p_lua_load_romlib(L); lua_setfield(L, -2, "rom");
-	m64p_lua_load_osdlib(L); lua_setfield(L, -2, "osd");
+	m64p_lua_load_memlib(L);   lua_setfield(L, -2, "memory");
+	m64p_lua_load_romlib(L);   lua_setfield(L, -2, "rom");
+	m64p_lua_load_osdlib(L);   lua_setfield(L, -2, "osd");
+#ifdef DBG
+	m64p_lua_load_debuglib(L); lua_setfield(L, -2, "debug");
+#endif
 
 
 	//m64p metatable
