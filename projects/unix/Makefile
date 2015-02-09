@@ -387,7 +387,25 @@ ifneq ($(SHAREDIR),)
 endif
 ifeq ($(LUA), 1)
   CFLAGS += -DWITH_LUA
-  LDLIBS += -L../../src/lua/lua-5.3.0/src -llua
+  LUA_SRCPATH = $(SRCDIR)/lua/lua-5.3.0/src
+  # don't use -L because that will try to use the liblua.a already installed
+  # on the system, which will fail if that liblua.a isn't compiled with
+  # -fPIC (which it isn't by default)
+  LDLIBS += $(LUA_SRCPATH)/liblua.a
+  LUA_OS = generic
+  ifeq ($(OS), LINUX)
+    LUA_OS = linux
+  endif
+  ifeq ($(OS), OSX)
+    LUA_OS = macosx
+  endif
+  ifeq ($(OS), FREEBSD)
+    LUA_OS = freebsd
+  endif
+  ifeq ($(OS), MINGW)
+    LUA_OS = mingw
+  endif
+  LUA_BUILDOPTS = $(LUA_OS)
 endif
 
 # set installation options
@@ -648,12 +666,19 @@ uninstall:
 
 clean:
 	$(RM) -r $(TARGET) $(SONAME) $(OBJDIR)
+	make -C $(LUA_SRCPATH) clean
 
 # build dependency files
 CFLAGS += -MD -MP
 -include $(OBJECTS:.o=.d)
 
 CXXFLAGS += $(CFLAGS)
+
+$(LUA_SRCPATH)/liblua.a: $(LUA_SRCPATH)
+	make -C $(LUA_SRCPATH) $(LUA_BUILDOPTS)
+	
+$(OBJDIR)/lua/lua.o: $(SRCDIR)/lua/lua.c $(LUA_SRCPATH)/liblua.a
+	$(COMPILE.c) -o $@ $<
 
 # standard build rules
 $(OBJDIR)/%.o: $(SRCDIR)/%.S

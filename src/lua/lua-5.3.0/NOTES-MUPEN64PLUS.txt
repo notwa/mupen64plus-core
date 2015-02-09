@@ -1,2 +1,7 @@
-This is the standard Lua 5.3.0 source package with the following modifications:
--src/Makefile: -fPIC added to CFLAGS.
+This is the standard Lua 5.3.0 source package from
+http://www.lua.org/download.html, with one modification:
+"-fPIC added to CFLAGS" in src/Makefile, to be able to statically link
+liblua.a into the Mupen64Plus core plugin.
+
+The default settings in luaconf.h aren't changed, so this Lua builds with
+compatibility flags for Lua 5.2 (but not 5.1).
