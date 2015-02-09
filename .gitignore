@@ -2,3 +2,5 @@
 /projects/unix/libmupen64plus*.so*
 /src/lua/lua-5.3.0/src/*.o
 /src/lua/lua-5.3.0/src/*.a
+/src/lua/lua-5.3.0/src/lua
+/src/lua/lua-5.3.0/src/luac
