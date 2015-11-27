@@ -608,7 +608,9 @@ ifeq ($(DEBUGGER), 1)
 	$(SRCDIR)/debugger/dbg_decoder.c \
 	$(SRCDIR)/debugger/dbg_memory.c \
 	$(SRCDIR)/debugger/dbg_breakpoints.c
-  LDLIBS += -lopcodes -lbfd
+  ifneq ($(OS), MINGW)
+    LDLIBS += -lopcodes -lbfd
+  endif
 endif
 
 # generate a list of object files to build, make a temporary directory for them
