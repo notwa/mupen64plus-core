@@ -66,29 +66,29 @@ void destroy_debugger()
 
 void check_exec_breakpoints(uint32 pc)
 {
-	int bpt;
+    int bpt;
 
-	if(run == 0) return;
-	//check if we hit a breakpoint
-	bpt = check_breakpoints(pc);
-	if(bpt < 0) return;
+    if(run == 0) return;
+    //check if we hit a breakpoint
+    bpt = check_breakpoints(pc);
+    if(bpt < 0) return;
 
 #ifdef WITH_LUA
-	//let Lua take care of changing the run state
-	m64p_lua_handle_breakpoint(pc, bpt, M64P_BKP_FLAG_EXEC);
+    //let Lua take care of changing the run state
+    m64p_lua_handle_breakpoint(pc, bpt, M64P_BKP_FLAG_EXEC);
 #else
-	run = 0;
+    run = 0;
 #endif
-	if (BPT_CHECK_FLAG(g_Breakpoints[bpt], M64P_BKP_FLAG_LOG))
-		log_breakpoint(pc, M64P_BKP_FLAG_EXEC, 0);
+    if (BPT_CHECK_FLAG(g_Breakpoints[bpt], M64P_BKP_FLAG_LOG))
+            log_breakpoint(pc, M64P_BKP_FLAG_EXEC, 0);
 }
 
 
 void update_debugger_ui(uint32 pc)
 {
-	if(run!=2) {
+    if(run!=2) {
         /* call front-end to notify user interface to update */
-		DebuggerCallback(DEBUG_UI_UPDATE, pc);
+        DebuggerCallback(DEBUG_UI_UPDATE, pc);
     }
     if(run==0) {
         // The emulation thread is blocked until a step call via the API.
@@ -102,8 +102,8 @@ void update_debugger(uint32 pc)
 // Should be called after each R4300 instruction
 // Checks for breakpoint hits on PC
 {
-	check_exec_breakpoints(pc);
-	update_debugger_ui(pc);
+    check_exec_breakpoints(pc);
+    update_debugger_ui(pc);
     previousPC = pc;
 }
 

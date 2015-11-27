@@ -193,13 +193,13 @@ int check_breakpoints_on_mem_access( uint32 pc, uint32 address, uint32 size, uin
             if (BPT_CHECK_FLAG(g_Breakpoints[bpt], M64P_BKP_FLAG_LOG))
                 log_breakpoint(pc, flags, address);
 #ifdef WITH_LUA
-			//let Lua take care of changing the run state
-			m64p_lua_handle_breakpoint(pc, bpt, flags);
+            //let Lua take care of changing the run state
+            m64p_lua_handle_breakpoint(pc, bpt, flags);
 #else
             run = 0;
 #endif
             update_debugger_ui(pc);
-			previousPC = pc;
+            previousPC = pc;
 
             return bpt;
         }

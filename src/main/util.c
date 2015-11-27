@@ -318,40 +318,40 @@ int parse_hex(const char *str, unsigned char *output, size_t output_size)
 
 char *formatstr(const char *fmt, ...)
 {
-	int size = 128, ret;
-	char *str = (char *)malloc(size), *newstr;
-	va_list args;
+    int size = 128, ret;
+    char *str = (char *)malloc(size), *newstr;
+    va_list args;
 
-	/* There are two implementations of vsnprintf we have to deal with:
-	 * C99 version: Returns the number of characters which would have been written
-	 *              if the buffer had been large enough, and -1 on failure.
-	 * Windows version: Returns the number of characters actually written,
-	 *                  and -1 on failure or truncation.
-	 * NOTE: An implementation equivalent to the Windows one appears in glibc <2.1.
-	 */
-	while (str != NULL)
-	{
-		va_start(args, fmt);
-		ret = vsnprintf(str, size, fmt, args);
-		va_end(args);
+    /* There are two implementations of vsnprintf we have to deal with:
+     * C99 version: Returns the number of characters which would have been written
+     *              if the buffer had been large enough, and -1 on failure.
+     * Windows version: Returns the number of characters actually written,
+     *                  and -1 on failure or truncation.
+     * NOTE: An implementation equivalent to the Windows one appears in glibc <2.1.
+     */
+    while (str != NULL)
+    {
+        va_start(args, fmt);
+        ret = vsnprintf(str, size, fmt, args);
+        va_end(args);
 
-		// Successful result?
-		if (ret >= 0 && ret < size)
-			return str;
+        // Successful result?
+        if (ret >= 0 && ret < size)
+            return str;
 
-		// Increment the capacity of the buffer
-		if (ret >= size)
-			size = ret + 1; // C99 version: We got the needed buffer size
-		else
-			size *= 2; // Windows version: Keep guessing
+        // Increment the capacity of the buffer
+        if (ret >= size)
+            size = ret + 1; // C99 version: We got the needed buffer size
+        else
+            size *= 2; // Windows version: Keep guessing
 
-		newstr = (char *)realloc(str, size);
-		if (newstr == NULL)
-			free(str);
-		str = newstr;
-	}
+        newstr = (char *)realloc(str, size);
+        if (newstr == NULL)
+            free(str);
+        str = newstr;
+    }
 
-	return NULL;
+    return NULL;
 }
 
 ini_line ini_parse_line(char **lineptr)

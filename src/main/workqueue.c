@@ -61,7 +61,7 @@ static struct work_struct *workqueue_get_work(struct workqueue_thread *thread)
             list_del_init(&work->list);
         } else {
             list_add(&thread->list, &workqueue_mgmt.thread_queue);
-	    SDL_CondWait(thread->work_avail, workqueue_mgmt.lock);
+            SDL_CondWait(thread->work_avail, workqueue_mgmt.lock);
         }
         SDL_UnlockMutex(workqueue_mgmt.lock);
 

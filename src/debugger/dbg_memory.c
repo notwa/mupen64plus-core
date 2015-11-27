@@ -417,15 +417,15 @@ uint32 read_memory_32_unaligned(uint32 addr)
 }
 
 void write_memory_32(uint32 addr, uint32 value){
-	switch(get_memory_type(addr))
-	{
-		case M64P_MEM_RDRAM:
-			addr &= 0xFFFFFF;
-			g_rdram[addr >> 2] = value;
-			if(r4300emu == CORE_DYNAREC && blocks[addr>>12] != NULL)
-			CHECK_MEM(addr)
-			break;
-	}
+    switch(get_memory_type(addr))
+    {
+        case M64P_MEM_RDRAM:
+            addr &= 0xFFFFFF;
+            g_rdram[addr >> 2] = value;
+            if(r4300emu == CORE_DYNAREC && blocks[addr>>12] != NULL)
+            CHECK_MEM(addr)
+            break;
+    }
 }
 
 void write_memory_32_unaligned(uint32 addr, uint32 value)
@@ -441,7 +441,7 @@ void write_memory_32_unaligned(uint32 addr, uint32 value)
 uint16 read_memory_16(uint32 addr)
 {
     return ((uint16)read_memory_8(addr) << 8) |
-		(uint16)read_memory_8(addr+1); //cough cough hack hack
+        (uint16)read_memory_8(addr+1); //cough cough hack hack
 }
 
 void write_memory_16(uint32 addr, uint16 value)

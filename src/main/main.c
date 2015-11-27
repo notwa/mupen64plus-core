@@ -697,7 +697,7 @@ static void video_plugin_render_callback(int bScreenRedrawn)
     int bOSD = ConfigGetParamBool(g_CoreConfig, "OnScreenDisplay");
 
 #ifdef WITH_LUA
-	m64p_lua_render_callback();
+    m64p_lua_render_callback();
 #endif
 
     // if the flag is set to take a screenshot, then grab it now
@@ -759,7 +759,7 @@ static void apply_speed_limiter(void)
 #endif
 
 #ifdef WITH_LUA
-	m64p_lua_vi_callback();
+    m64p_lua_vi_callback();
 #endif
 
     // if this is the first frame, initialize our data structures

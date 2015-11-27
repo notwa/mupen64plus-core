@@ -949,7 +949,7 @@ EXPORT m64p_error CALL ConfigSetParameter(m64p_handle ConfigSectionHandle, const
     {
         case M64TYPE_STRING:
             free(var->val.string);
-	    break;
+            break;
         default:
             break;
     }
