@@ -264,7 +264,7 @@ static int emu_unregister_callback(lua_State *L) {
     while(!done) {
         lua_rawgeti(L, -1, ++i); //-1: slot, -2: tbl
         if(lua_isnil(L, -1)) done = 1;
-        else if(lua_compare(L, -1, 2, LUA_OPEQ)) { //value == arg2
+        else if(lua_compare(L, -1, 3, LUA_OPEQ)) { //value == arg2
             //replace with a non-function, non-nil value.
             lua_pushboolean(L, 0); //-1: false, -2: slot, -3: tbl
             lua_rawseti(L, -3, i); //-1: slot, -2: tbl
