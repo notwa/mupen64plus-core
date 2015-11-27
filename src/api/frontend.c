@@ -316,8 +316,10 @@ EXPORT m64p_error CALL CoreDoCommand(m64p_command Command, int ParamInt, void *P
             main_advance_one();
             return M64ERR_SUCCESS;
 
+#ifdef WITH_LUA
         case M64CMD_LOAD_SCRIPT:
             return m64p_lua_load_script((const char*)ParamPtr);
+#endif //WITH_LUA
 
         default:
             return M64ERR_INPUT_INVALID;
