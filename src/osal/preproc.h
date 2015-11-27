@@ -27,7 +27,7 @@
 #if defined(WIN32) && !defined(__MINGW32__)
 
   /* macros */
-  #define OSAL_BREAKPOINT_INTERRUPT __asm{ int 3 };
+  #define OSAL_BREAKPOINT_INTERRUPT __debugbreak();
   #define ALIGN(BYTES,DATA) __declspec(align(BYTES)) DATA
   #define osal_inline __inline
 
@@ -38,6 +38,7 @@
 
   /* for isnan() */
   #include <float.h>
+
   #define isnan _isnan
 
 #else  /* Not WIN32 */

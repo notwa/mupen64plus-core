@@ -1,8 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus - debugger.h                                              *
+ *   Mupen64plus - cp1_private.h                                           *
  *   Mupen64Plus homepage: http://code.google.com/p/mupen64plus/           *
- *   Copyright (C) 2008 DarkJeztr                                          *
- *   Copyright (C) 2002 davFr                                              *
+ *   Copyright (C) 2002 Hacktarux                                          *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -20,23 +19,19 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef __DEBUGGER_H__
-#define __DEBUGGER_H__
+#ifndef M64P_R4300_CP1_PRIVATE_H
+#define M64P_R4300_CP1_PRIVATE_H
 
-extern int g_DebuggerActive;  /* True if the debugger is running */
+#include <stdint.h>
 
-/* State of the Emulation Thread:
-   0 -> pause, 1 -> step, 2 -> run. */
-extern int run;
+#include "cp1.h"
 
-extern uint32 previousPC;
+extern float *reg_cop1_simple[32];
+extern double *reg_cop1_double[32];
+extern uint32_t FCR0, FCR31;
+extern int64_t reg_cop1_fgr_64[32];
+extern uint32_t rounding_mode;
 
-void init_debugger(void);
-void check_exec_breakpoints(uint32 pc);
-void update_debugger_ui(uint32 pc);
-void update_debugger(uint32 pc);
-void destroy_debugger(void);
-void debugger_step(void);
+#endif /* M64P_R4300_CP1_PRIVATE_H */
 
-#endif /* __DEBUGGER_H__ */
 

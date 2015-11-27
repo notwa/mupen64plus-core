@@ -20,21 +20,24 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#include "assemble.h"
-#include "regcache.h"
-#include "interpret.h"
+#include <stddef.h>
+#include <stdint.h>
 
 #include "api/debugger.h"
+#include "assemble.h"
+#include "interpret.h"
 #include "main/main.h"
 #include "memory/memory.h"
-#include "r4300/r4300.h"
 #include "r4300/cached_interp.h"
-#include "r4300/cp0.h"
-#include "r4300/cp1.h"
+#include "r4300/cp0_private.h"
+#include "r4300/cp1_private.h"
+#include "r4300/exception.h"
 #include "r4300/interupt.h"
 #include "r4300/ops.h"
+#include "r4300/r4300.h"
+#include "r4300/recomp.h"
 #include "r4300/recomph.h"
-#include "r4300/exception.h"
+#include "regcache.h"
 
 #if defined(COUNT_INSTR)
 #include "r4300/instr_counters.h"
@@ -53,7 +56,7 @@ int branch_taken = 0;
 
 /* static functions */
 
-static void genupdate_count(unsigned int addr)
+static void gencp0_update_count(unsigned int addr)
 {
 #if !defined(COMPARE_CORE) && !defined(DBG)
    mov_reg32_imm32(EAX, addr);
@@ -65,7 +68,7 @@ static void genupdate_count(unsigned int addr)
 #else
    mov_reg64_imm64(RAX, (unsigned long long) (dst+1));
    mov_m64rel_xreg64((unsigned long long *)(&PC), RAX);
-   mov_reg64_imm64(RAX, (unsigned long long)update_count);
+   mov_reg64_imm64(RAX, (unsigned long long)cp0_update_count);
    call_reg64(RAX);
 #endif
 }
@@ -310,7 +313,7 @@ void gendebug(void)
 }
 #endif
 
-void gencallinterp(unsigned long addr, int jump)
+void gencallinterp(uintptr_t addr, int jump)
 {
    free_registers_move_start();
 
@@ -336,7 +339,7 @@ void gendelayslot(void)
    recompile_opcode();
    
    free_all_registers();
-   genupdate_count(dst->addr+4);
+   gencp0_update_count(dst->addr+4);
    
    mov_m32rel_imm32((void*)(&delay_slot), 0);
 }
@@ -1006,7 +1009,7 @@ void gentestl(void)
    
    jump_end_rel32();
 
-   genupdate_count(dst->addr-4);
+   gencp0_update_count(dst->addr-4);
    mov_m32rel_imm32((void*)(&last_addr), dst->addr + 4);
    gencheck_interupt((unsigned long long) (dst + 1));
    jmp(dst->addr + 4);
@@ -1051,7 +1054,7 @@ void gentestl_out(void)
    
    jump_end_rel32();
 
-   genupdate_count(dst->addr-4);
+   gencp0_update_count(dst->addr-4);
    mov_m32rel_imm32((void*)(&last_addr), dst->addr + 4);
    gencheck_interupt((unsigned long long) (dst + 1));
    jmp(dst->addr + 4);
@@ -1737,7 +1740,7 @@ void gensh(void)
    mov_reg64_imm64(RAX, (unsigned long long) (dst+1)); // 10
    mov_m64rel_xreg64((unsigned long long *)(&PC), RAX); // 7
    mov_m32rel_xreg32((unsigned int *)(&address), EBX); // 7
-   mov_m16rel_xreg16((unsigned short *)(&hword), CX); // 8
+   mov_m16rel_xreg16((unsigned short *)(&cpu_hword), CX); // 8
    shr_reg32_imm8(EBX, 16); // 3
    mov_reg64_preg64x8preg64(RBX, RBX, RSI);  // 4
    call_reg64(RBX); // 2
@@ -1812,7 +1815,7 @@ void gensw(void)
    mov_reg64_imm64(RAX, (unsigned long long) (dst+1)); // 10
    mov_m64rel_xreg64((unsigned long long *)(&PC), RAX); // 7
    mov_m32rel_xreg32((unsigned int *)(&address), EBX); // 7
-   mov_m32rel_xreg32((unsigned int *)(&word), ECX); // 7
+   mov_m32rel_xreg32((unsigned int *)(&cpu_word), ECX); // 7
    shr_reg32_imm8(EBX, 16); // 3
    mov_reg64_preg64x8preg64(RBX, RBX, RSI);  // 4
    call_reg64(RBX); // 2
@@ -2065,7 +2068,7 @@ void genswc1(void)
    mov_reg64_imm64(RAX, (unsigned long long) (dst+1)); // 10
    mov_m64rel_xreg64((unsigned long long *)(&PC), RAX); // 7
    mov_m32rel_xreg32((unsigned int *)(&address), EBX); // 7
-   mov_m32rel_xreg32((unsigned int *)(&word), ECX); // 7
+   mov_m32rel_xreg32((unsigned int *)(&cpu_word), ECX); // 7
    shr_reg32_imm8(EBX, 16); // 3
    mov_reg64_preg64x8preg64(RBX, RBX, RSI);  // 4
    call_reg64(RBX); // 2
@@ -2133,8 +2136,8 @@ void gensdc1(void)
    mov_reg64_imm64(RAX, (unsigned long long) (dst+1)); // 10
    mov_m64rel_xreg64((unsigned long long *)(&PC), RAX); // 7
    mov_m32rel_xreg32((unsigned int *)(&address), EBX); // 7
-   mov_m32rel_xreg32((unsigned int *)(&dword), ECX); // 7
-   mov_m32rel_xreg32((unsigned int *)(&dword)+1, EDX); // 7
+   mov_m32rel_xreg32((unsigned int *)(&cpu_dword), ECX); // 7
+   mov_m32rel_xreg32((unsigned int *)(&cpu_dword)+1, EDX); // 7
    shr_reg32_imm8(EBX, 16); // 3
    mov_reg64_preg64x8preg64(RBX, RBX, RSI);  // 4
    call_reg64(RBX); // 2
@@ -2202,8 +2205,8 @@ void gensd(void)
    mov_reg64_imm64(RAX, (unsigned long long) (dst+1)); // 10
    mov_m64rel_xreg64((unsigned long long *)(&PC), RAX); // 7
    mov_m32rel_xreg32((unsigned int *)(&address), EBX); // 7
-   mov_m32rel_xreg32((unsigned int *)(&dword), ECX); // 7
-   mov_m32rel_xreg32((unsigned int *)(&dword)+1, EDX); // 7
+   mov_m32rel_xreg32((unsigned int *)(&cpu_dword), ECX); // 7
+   mov_m32rel_xreg32((unsigned int *)(&cpu_dword)+1, EDX); // 7
    shr_reg32_imm8(EBX, 16); // 3
    mov_reg64_preg64x8preg64(RBX, RBX, RSI);  // 4
    call_reg64(RBX); // 2

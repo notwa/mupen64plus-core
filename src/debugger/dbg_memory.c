@@ -22,70 +22,27 @@
 
 #include <string.h>
 
-#include "dbg_types.h"
-#include "dbg_memory.h"
-#include "dbg_breakpoints.h"
-
 #include "ai/ai_controller.h"
-#include "api/m64p_types.h"
 #include "api/callbacks.h"
+#include "api/m64p_types.h"
+#include "dbg_breakpoints.h"
+#include "dbg_memory.h"
+#include "dbg_types.h"
 #include "main/main.h"
 #include "main/rom.h"
 #include "memory/memory.h"
 #include "pi/pi_controller.h"
 #include "r4300/cached_interp.h"
+#include "r4300/ops.h"
 #include "r4300/r4300.h"
 #include "r4300/r4300_core.h"
-#include "r4300/ops.h"
-#include "r4300/tlb.h"
-//#include "main/rom.h"
-
-/* Following are the breakpoint functions for memory access calls.  See debugger/memory.h
- * These macros generate the memory breakpoint function calls.*/
-/* MEMBREAKALL_local(nothing);
-MEMBREAKALL_local(nomem);
-MEMBREAKALL(rdram);
-MEMBREAKALL(rdramFB);
-MEMBREAKALL_local(rdramreg);
-MEMBREAKALL_local(rsp_mem);
-MEMBREAKALL_local(rsp_reg);
-MEMBREAKALL_local(rsp);
-MEMBREAKALL_local(dp);
-MEMBREAKALL_local(dps);
-MEMBREAKALL_local(mi);
-MEMBREAKALL_local(vi);
-MEMBREAKALL_local(ai);
-MEMBREAKALL_local(pi);
-MEMBREAKALL_local(ri);
-MEMBREAKALL_local(si);
-MEMBREAKALL_local(pif);
-
-static MEMBREAKREAD(read_flashram_status, 4);
-static MEMBREAKREAD(read_flashram_statusb, 1);
-static MEMBREAKREAD(read_flashram_statush, 2);
-static MEMBREAKREAD(read_flashram_statusd, 8);
-static MEMBREAKWRITE(write_flashram_dummy, 4);
-static MEMBREAKWRITE(write_flashram_dummyb, 1);
-static MEMBREAKWRITE(write_flashram_dummyh, 2);
-static MEMBREAKWRITE(write_flashram_dummyd, 8);
-static MEMBREAKWRITE(write_flashram_command, 4);
-static MEMBREAKWRITE(write_flashram_commandb, 1);
-static MEMBREAKWRITE(write_flashram_commandh, 2);
-static MEMBREAKWRITE(write_flashram_commandd, 8);
-
-static MEMBREAKREAD(read_rom, 4);
-static MEMBREAKREAD(read_romb, 1);
-static MEMBREAKREAD(read_romh, 2);
-static MEMBREAKREAD(read_romd, 8);
-
-static MEMBREAKWRITE(write_rom, 8); */
 #include "rdp/rdp_core.h"
-#include "rsp/rsp_core.h"
 #include "ri/ri_controller.h"
+#include "rsp/rsp_core.h"
 #include "si/si_controller.h"
 #include "vi/vi_controller.h"
 
-#if !defined(NO_ASM) && (defined(__i386__) || defined(__x86_64__))
+#if !defined(NO_ASM) && (defined(__i386__) || (defined(__x86_64__) && defined(__GNUC__)))
 
 /* we must define PACKAGE so that bfd.h (which is included from dis-asm.h) doesn't throw an error */
 #define PACKAGE "mupen64plus-core"
@@ -103,8 +60,7 @@ static void *opaddr_recompiled[564];
 static disassemble_info dis_info;
 
 #define CHECK_MEM(address) \
-   if (!invalid_code[(address) >> 12] && blocks[(address) >> 12]->block[((address) & 0xFFF) / 4].ops != current_instruction_table.NOTCOMPILED) \
-     invalid_code[(address) >> 12] = 1;
+   invalidate_r4300_cached_code(address, 4);
 
 static void process_opcode_out(void *strm, const char *fmt, ...){
   va_list ap;
@@ -300,6 +256,8 @@ void init_host_disassembler(void)
 }
 
 #endif
+
+#ifdef DBG
 
 uint64 read_memory_64(uint32 addr)
 {
@@ -551,3 +509,5 @@ uint32 get_memory_flags(uint32 addr)
 
   return flags;
 }
+
+#endif

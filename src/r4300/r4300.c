@@ -19,37 +19,38 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "ai/ai_controller.h"
-#include "api/m64p_types.h"
 #include "api/callbacks.h"
 #include "api/debugger.h"
-#include "memory/memory.h"
+#include "api/m64p_types.h"
+#include "cached_interp.h"
+#include "cp0_private.h"
+#include "cp1_private.h"
+#include "interupt.h"
 #include "main/main.h"
 #include "main/rom.h"
+#include "memory/memory.h"
+#include "mi_controller.h"
+#include "new_dynarec/new_dynarec.h"
+#include "ops.h"
 #include "pi/pi_controller.h"
-#include "rsp/rsp_core.h"
-#include "si/si_controller.h"
-#include "vi/vi_controller.h"
-
+#include "pure_interp.h"
 #include "r4300.h"
 #include "r4300_core.h"
-#include "cached_interp.h"
-#include "cp0.h"
-#include "cp1.h"
-#include "ops.h"
-#include "interupt.h"
-#include "pure_interp.h"
 #include "recomp.h"
 #include "recomph.h"
+#include "rsp/rsp_core.h"
+#include "si/si_controller.h"
 #include "tlb.h"
-#include "new_dynarec/new_dynarec.h"
+#include "vi/vi_controller.h"
 
 #ifdef DBG
+#include "debugger/dbg_debugger.h"
 #include "debugger/dbg_types.h"
-#include "debugger/debugger.h"
 #endif
 
 #if defined(COUNT_INSTR)
@@ -58,19 +59,23 @@
 
 unsigned int r4300emu = 0;
 unsigned int count_per_op = COUNT_PER_OP_DEFAULT;
-int llbit, rompause;
+int rompause;
+unsigned int llbit;
 #if NEW_DYNAREC != NEW_DYNAREC_ARM
 int stop;
-long long int reg[32], hi, lo;
-unsigned int next_interupt;
+int64_t reg[32], hi, lo;
+uint32_t next_interupt;
 precomp_instr *PC;
 #endif
 long long int local_rs;
-unsigned int delay_slot, skip_jump = 0, dyna_interp = 0, last_addr;
+unsigned int delay_slot;
+uint32_t skip_jump = 0;
+unsigned int dyna_interp = 0;
+uint32_t last_addr;
 
 cpu_instruction_table current_instruction_table;
 
-void generic_jump_to(unsigned int address)
+void generic_jump_to(uint32_t address)
 {
    if (r4300emu == CORE_PURE_INTERPRETER)
       PC->addr = address;
@@ -129,23 +134,23 @@ void r4300_reset_hard(void)
     llbit=0;
     hi=0;
     lo=0;
-    FCR0=0x511;
+    FCR0 = UINT32_C(0x511);
     FCR31=0;
 
     // set COP0 registers
-    g_cp0_regs[CP0_RANDOM_REG] = 31;
-    g_cp0_regs[CP0_STATUS_REG]= 0x34000000;
+    g_cp0_regs[CP0_RANDOM_REG] = UINT32_C(31);
+    g_cp0_regs[CP0_STATUS_REG]= UINT32_C(0x34000000);
     set_fpr_pointers(g_cp0_regs[CP0_STATUS_REG]);
-    g_cp0_regs[CP0_CONFIG_REG]= 0x6e463;
-    g_cp0_regs[CP0_PREVID_REG] = 0xb00;
-    g_cp0_regs[CP0_COUNT_REG] = 0x5000;
-    g_cp0_regs[CP0_CAUSE_REG] = 0x5C;
-    g_cp0_regs[CP0_CONTEXT_REG] = 0x7FFFF0;
-    g_cp0_regs[CP0_EPC_REG] = 0xFFFFFFFF;
-    g_cp0_regs[CP0_BADVADDR_REG] = 0xFFFFFFFF;
-    g_cp0_regs[CP0_ERROREPC_REG] = 0xFFFFFFFF;
+    g_cp0_regs[CP0_CONFIG_REG]= UINT32_C(0x6e463);
+    g_cp0_regs[CP0_PREVID_REG] = UINT32_C(0xb00);
+    g_cp0_regs[CP0_COUNT_REG] = UINT32_C(0x5000);
+    g_cp0_regs[CP0_CAUSE_REG] = UINT32_C(0x5C);
+    g_cp0_regs[CP0_CONTEXT_REG] = UINT32_C(0x7FFFF0);
+    g_cp0_regs[CP0_EPC_REG] = UINT32_C(0xFFFFFFFF);
+    g_cp0_regs[CP0_BADVADDR_REG] = UINT32_C(0xFFFFFFFF);
+    g_cp0_regs[CP0_ERROREPC_REG] = UINT32_C(0xFFFFFFFF);
    
-    rounding_mode = 0x33F;
+    update_x86_rounding_mode(FCR31);
 }
 
 
@@ -209,9 +214,9 @@ void r4300_reset_soft(void)
     g_sp.mem[0x101c/4] = 0x3c0bb000;
 
     /* required by CIC x105 */
-    reg[11] = 0xffffffffa4000040ULL; /* t3 */
-    reg[29] = 0xffffffffa4001ff0ULL; /* sp */
-    reg[31] = 0xffffffffa4001550ULL; /* ra */
+    reg[11] = INT64_C(0xffffffffa4000040); /* t3 */
+    reg[29] = INT64_C(0xffffffffa4001ff0); /* sp */
+    reg[31] = INT64_C(0xffffffffa4001550); /* ra */
 
     /* ready to execute IPL3 */
 }
@@ -221,7 +226,7 @@ static void dynarec_setup_code(void)
 {
    // The dynarec jumps here after we call dyna_start and it prepares
    // Here we need to prepare the initial code block and jump to it
-   jump_to(0xa4000040);
+   jump_to(UINT32_C(0xa4000040));
 
    // Prevent segfault on failed jump_to
    if (!actual->block || !actual->code)
@@ -296,7 +301,7 @@ void r4300_execute(void)
         DebugMessage(M64MSG_INFO, "Starting R4300 emulator: Cached Interpreter");
         r4300emu = CORE_INTERPRETER;
         init_blocks();
-        jump_to(0xa4000040);
+        jump_to(UINT32_C(0xa4000040));
 
         /* Prevent segfault on failed jump_to */
         if (!actual->block)

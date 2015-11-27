@@ -42,7 +42,6 @@ endif
 ifeq ("$(UNAME)","OpenBSD")
   OS = FREEBSD
   CFLAGS += -DIOAPI_NO_64
-  $(warning OS type "$(UNAME)" not officially supported.')
 endif
 ifneq ("$(filter GNU/kFreeBSD kfreebsd,$(UNAME))","")
   OS = LINUX
@@ -129,7 +128,7 @@ endif
 
 # base CFLAGS, LDLIBS, and LDFLAGS
 OPTFLAGS ?= -O3 -flto
-WARNFLAGS ?= -Wall
+WARNFLAGS ?= -Wall -Wno-unused-function
 CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -ffast-math -fno-strict-aliasing -fvisibility=hidden -I../../src -DM64P_PARALLEL
 CXXFLAGS += -fvisibility-inlines-hidden
 LDLIBS +=  -lm
@@ -161,6 +160,7 @@ ifeq ($(OS), FREEBSD)
   SONAME = libmupen64plus$(POSTFIX).so.2
   LDFLAGS += -Wl,-Bsymbolic -shared -Wl,-export-dynamic -Wl,-soname,$(SONAME)
   LDLIBS += -L${LOCALBASE}/lib -lc
+  ASFLAGS = -f elf -d ELF_TYPE
 endif
 ifeq ($(OS), LINUX)
   TARGET = libmupen64plus$(POSTFIX).so.2.0.0
@@ -169,6 +169,7 @@ ifeq ($(OS), LINUX)
   LDLIBS += -ldl
   # only export api symbols
   LDFLAGS += -Wl,-version-script,$(SRCDIR)/api/api_export.ver
+  ASFLAGS = -f elf -d ELF_TYPE
 endif
 ifeq ($(OS), OSX)
   #xcode-select has been around since XCode 3.0, i.e. OS X 10.5
@@ -178,6 +179,7 @@ ifeq ($(OS), OSX)
   TARGET = libmupen64plus$(POSTFIX).dylib
   LDFLAGS += -framework CoreFoundation -bundle -read_only_relocs suppress
   LDLIBS += -ldl
+  ASFLAGS = -f macho
   ifeq ($(CPU), X86)
     ifeq ($(ARCH_DETECTED), 64BITS)
       CFLAGS += -pipe -arch x86_64 -mmacosx-version-min=10.5 -isysroot $(OSX_SDK_PATH)
@@ -195,6 +197,7 @@ ifeq ($(OS), MINGW)
   # only export api symbols
   LDFLAGS += -Wl,-version-script,$(SRCDIR)/api/api_export.ver
   LDLIBS += -lpthread
+  ASFLAGS = -f win32
 endif
 
 ifeq ($(CPU_ENDIANNESS), BIG)
@@ -206,6 +209,7 @@ ifneq ($(findstring $(MAKEFLAGS),s),s)
 ifndef V
 	Q_CC  = @echo '    CC  '$@;
 	Q_CXX = @echo '    CXX '$@;
+	Q_AS  = @echo '    AS  '$@;
 	Q_LD  = @echo '    LD  '$@;
 endif
 endif
@@ -321,11 +325,13 @@ endif
 # set base program pointers and flags
 CC        = $(CROSS_COMPILE)gcc
 CXX       = $(CROSS_COMPILE)g++
+AS        = nasm
 RM       ?= rm -f
 INSTALL  ?= install
 MKDIR ?= mkdir -p
 COMPILE.c = $(Q_CC)$(CC) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
 COMPILE.cc = $(Q_CXX)$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
+COMPILE.as = $(Q_AS)$(AS) $(ASFLAGS)
 LINK.o = $(Q_LD)$(CXX) $(CXXFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 
 ifeq ($(OS),OSX)
@@ -454,6 +460,7 @@ SOURCE = \
 	$(SRCDIR)/pi/pi_controller.c \
 	$(SRCDIR)/pi/sram.c \
 	$(SRCDIR)/plugin/emulate_game_controller_via_input_plugin.c \
+	$(SRCDIR)/plugin/emulate_speaker_via_audio_plugin.c \
 	$(SRCDIR)/plugin/get_time_using_C_localtime.c \
 	$(SRCDIR)/plugin/rumble_via_input_plugin.c \
 	$(SRCDIR)/plugin/plugin.c \
@@ -477,6 +484,7 @@ SOURCE = \
 	$(SRCDIR)/rdp/fb.c \
 	$(SRCDIR)/rdp/rdp_core.c \
 	$(SRCDIR)/ri/rdram.c \
+	$(SRCDIR)/ri/rdram_detection_hack.c \
 	$(SRCDIR)/ri/ri_controller.c \
 	$(SRCDIR)/rsp/rsp_core.c \
 	$(SRCDIR)/si/af_rtc.c \
@@ -539,9 +547,14 @@ ifneq ($(DYNAREC), )
   ifeq ($(NEW_DYNAREC), 1)
     ifeq ($(DYNAREC), x86)
       CFLAGS += -DNEW_DYNAREC=1
+      SOURCE += \
+	    $(SRCDIR)/r4300/new_dynarec/x86/linkage_x86.asm
     else
       ifeq ($(DYNAREC), arm)
         CFLAGS += -DNEW_DYNAREC=3
+        SOURCE += \
+         $(SRCDIR)/r4300/new_dynarec/arm/linkage_arm.S \
+         $(SRCDIR)/r4300/new_dynarec/arm/arm_cpu_features.c
       else
         $(error NEW_DYNAREC is only supported on 32 bit x86 and 32 bit armel)
       endif
@@ -549,7 +562,6 @@ ifneq ($(DYNAREC), )
 
     SOURCE += \
       $(SRCDIR)/r4300/empty_dynarec.c \
-      $(SRCDIR)/r4300/new_dynarec/linkage_$(DYNAREC).S \
       $(SRCDIR)/r4300/new_dynarec/new_dynarec.c
   else
     SOURCE += \
@@ -592,7 +604,7 @@ endif
 
 ifeq ($(DEBUGGER), 1)
   SOURCE += \
-	$(SRCDIR)/debugger/debugger.c \
+	$(SRCDIR)/debugger/dbg_debugger.c \
 	$(SRCDIR)/debugger/dbg_decoder.c \
 	$(SRCDIR)/debugger/dbg_memory.c \
 	$(SRCDIR)/debugger/dbg_breakpoints.c
@@ -603,6 +615,7 @@ endif
 OBJECTS := $(patsubst $(SRCDIR)/%.c,   $(OBJDIR)/%.o, $(filter %.c,   $(SOURCE)))
 OBJECTS += $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(filter %.cpp, $(SOURCE)))
 OBJECTS += $(patsubst $(SRCDIR)/%.S, $(OBJDIR)/%.o, $(filter %.S, $(SOURCE)))
+OBJECTS += $(patsubst $(SRCDIR)/%.asm, $(OBJDIR)/%.o, $(filter %.asm, $(SOURCE)))
 OBJDIRS = $(dir $(OBJECTS))
 $(shell $(MKDIR) $(OBJDIRS))
 
@@ -684,6 +697,9 @@ $(OBJDIR)/lua/lua.o: $(SRCDIR)/lua/lua.c $(LUA_SRCPATH)/liblua.a
 	$(COMPILE.c) -o $@ $<
 
 # standard build rules
+$(OBJDIR)/%.o: $(SRCDIR)/%.asm
+	$(COMPILE.as) -o $@ $<
+	
 $(OBJDIR)/%.o: $(SRCDIR)/%.S
 	$(COMPILE.c) -o $@ $<
 

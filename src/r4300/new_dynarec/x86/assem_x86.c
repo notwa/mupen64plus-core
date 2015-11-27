@@ -28,9 +28,12 @@ int branch_target;
 uint64_t readmem_dword;
 static precomp_instr fake_pc;
 u_int memory_map[1048576];
-static u_int mini_ht[32][2]  __attribute__((aligned(8)));
-u_char restore_candidate[512]  __attribute__((aligned(4)));
+ALIGN(8, static u_int mini_ht[32][2]);
+ALIGN(4, u_char restore_candidate[512]);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void do_interrupt();
 void jump_vaddr_eax();
 void jump_vaddr_ecx();
@@ -38,6 +41,9 @@ void jump_vaddr_edx();
 void jump_vaddr_ebx();
 void jump_vaddr_ebp();
 void jump_vaddr_edi();
+#ifdef __cplusplus
+}
+#endif
 
 static const u_int jump_vaddr_reg[8] = {
   (int)jump_vaddr_eax,
@@ -49,6 +55,9 @@ static const u_int jump_vaddr_reg[8] = {
   0,
   (int)jump_vaddr_edi };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void invalidate_block_eax();
 void invalidate_block_ecx();
 void invalidate_block_edx();
@@ -56,6 +65,9 @@ void invalidate_block_ebx();
 void invalidate_block_ebp();
 void invalidate_block_esi();
 void invalidate_block_edi();
+#ifdef __cplusplus
+}
+#endif
 
 static const u_int invalidate_block_reg[8] = {
   (int)invalidate_block_eax,
@@ -73,7 +85,7 @@ static const u_short rounding_modes[4] = {
   0xB3F, // ceil
   0x73F};// floor
 
-#include "../fpu.h"
+#include "../../fpu.h"
 
 // We need these for cmovcc instructions on x86
 static const u_int const_zero=0;
@@ -102,15 +114,171 @@ static void set_jump_target(int addr,int target)
   }
 }
 
+void *dynamic_linker(void * src, u_int vaddr)
+{
+  u_int page=(vaddr^0x80000000)>>12;
+  u_int vpage=page;
+  if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[vaddr>>12]^0x80000000)>>12;
+  if(page>2048) page=2048+(page&2047);
+  if(vpage>262143&&tlb_LUT_r[vaddr>>12]) vpage&=2047; // jump_dirty uses a hash of the virtual address instead
+  if(vpage>2048) vpage=2048+(vpage&2047);
+  struct ll_entry *head;
+  head=jump_in[page];
+
+  while(head!=NULL) {
+    if(head->vaddr==vaddr&&head->reg32==0) {
+      int *ptr=(int*)src;
+      int *ptr2=(int*)((u_int)ptr + (u_int)*ptr + 4);
+      assert((*ptr2&0xFF)==0x68);                   //push
+      assert((*(int*)((u_int)ptr2+5)&0xFF)==0x68);  //push
+      assert((*(int*)((u_int)ptr2+10)&0xFF)==0xE8); //call
+      add_link(vaddr, ptr2);
+      u_int offset=(u_int)head->addr-(u_int)ptr-4;
+      *ptr=offset;
+      return head->addr;
+    }
+    head=head->next;
+  }
+
+  u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+  if(ht_bin[0]==vaddr) return (void *)ht_bin[1];
+  if(ht_bin[2]==vaddr) return (void *)ht_bin[3];
+
+  head=jump_dirty[vpage];
+  while(head!=NULL) {
+    if(head->vaddr==vaddr&&head->reg32==0) {
+      //DebugMessage(M64MSG_VERBOSE, "TRACE: count=%d next=%d (get_addr match dirty %x: %x)",g_cp0_regs[CP0_COUNT_REG],next_interupt,vaddr,(int)head->addr);
+      // Don't restore blocks which are about to expire from the cache
+      if((((u_int)head->addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2))) {
+        if(verify_dirty(head->addr)) {
+          //DebugMessage(M64MSG_VERBOSE, "restore candidate: %x (%d) d=%d",vaddr,page,invalid_code[vaddr>>12]);
+          invalid_code[vaddr>>12]=0;
+          memory_map[vaddr>>12]|=0x40000000;
+          if(vpage<2048) {
+            if(tlb_LUT_r[vaddr>>12]) {
+              invalid_code[tlb_LUT_r[vaddr>>12]>>12]=0;
+              memory_map[tlb_LUT_r[vaddr>>12]>>12]|=0x40000000;
+            }
+            restore_candidate[vpage>>3]|=1<<(vpage&7);
+          }
+          else restore_candidate[page>>3]|=1<<(page&7);
+          u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+          if(ht_bin[0]==vaddr) {
+            ht_bin[1]=(int)head->addr; // Replace existing entry
+          }
+          else
+          {
+            ht_bin[3]=ht_bin[1];
+            ht_bin[2]=ht_bin[0];
+            ht_bin[1]=(int)head->addr;
+            ht_bin[0]=vaddr;
+          }
+          return head->addr;
+        }
+      }
+    }
+    head=head->next;
+  }
+
+  int r=new_recompile_block(vaddr);
+  if(r==0) return dynamic_linker(src, vaddr);
+  // Execute in unmapped page, generate pagefault exception
+  g_cp0_regs[CP0_STATUS_REG]|=2;
+  g_cp0_regs[CP0_CAUSE_REG]=0x8;
+  g_cp0_regs[CP0_EPC_REG]=vaddr;
+  g_cp0_regs[CP0_BADVADDR_REG]=vaddr;
+  g_cp0_regs[CP0_CONTEXT_REG]=(g_cp0_regs[CP0_CONTEXT_REG]&0xFF80000F)|((g_cp0_regs[CP0_BADVADDR_REG]>>9)&0x007FFFF0);
+  g_cp0_regs[CP0_ENTRYHI_REG]=g_cp0_regs[CP0_BADVADDR_REG]&0xFFFFE000;
+  return get_addr_ht(0x80000000);
+}
+
+void *dynamic_linker_ds(void * src, u_int vaddr)
+{
+  u_int page=(vaddr^0x80000000)>>12;
+  u_int vpage=page;
+  if(page>262143&&tlb_LUT_r[vaddr>>12]) page=(tlb_LUT_r[vaddr>>12]^0x80000000)>>12;
+  if(page>2048) page=2048+(page&2047);
+  if(vpage>262143&&tlb_LUT_r[vaddr>>12]) vpage&=2047; // jump_dirty uses a hash of the virtual address instead
+  if(vpage>2048) vpage=2048+(vpage&2047);
+  struct ll_entry *head;
+  head=jump_in[page];
+
+  while(head!=NULL) {
+    if(head->vaddr==vaddr&&head->reg32==0) {
+      int *ptr=(int*)src;
+      int *ptr2=(int*)((u_int)ptr + (u_int)*ptr + 4);
+      assert((*ptr2&0xFF)==0x68);                   //push
+      assert((*(int*)((u_int)ptr2+5)&0xFF)==0x68);  //push
+      assert((*(int*)((u_int)ptr2+10)&0xFF)==0xE8); //call
+      add_link(vaddr, ptr2);
+      u_int offset=(u_int)head->addr-(u_int)ptr-4;
+      *ptr=offset;
+      return head->addr;
+    }
+    head=head->next;
+  }
+
+  u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+  if(ht_bin[0]==vaddr) return (void *)ht_bin[1];
+  if(ht_bin[2]==vaddr) return (void *)ht_bin[3];
+
+  head=jump_dirty[vpage];
+  while(head!=NULL) {
+    if(head->vaddr==vaddr&&head->reg32==0) {
+      //DebugMessage(M64MSG_VERBOSE, "TRACE: count=%d next=%d (get_addr match dirty %x: %x)",g_cp0_regs[CP0_COUNT_REG],next_interupt,vaddr,(int)head->addr);
+      // Don't restore blocks which are about to expire from the cache
+      if((((u_int)head->addr-(u_int)out)<<(32-TARGET_SIZE_2))>0x60000000+(MAX_OUTPUT_BLOCK_SIZE<<(32-TARGET_SIZE_2))) {
+        if(verify_dirty(head->addr)) {
+          //DebugMessage(M64MSG_VERBOSE, "restore candidate: %x (%d) d=%d",vaddr,page,invalid_code[vaddr>>12]);
+          invalid_code[vaddr>>12]=0;
+          memory_map[vaddr>>12]|=0x40000000;
+          if(vpage<2048) {
+            if(tlb_LUT_r[vaddr>>12]) {
+              invalid_code[tlb_LUT_r[vaddr>>12]>>12]=0;
+              memory_map[tlb_LUT_r[vaddr>>12]>>12]|=0x40000000;
+            }
+            restore_candidate[vpage>>3]|=1<<(vpage&7);
+          }
+          else restore_candidate[page>>3]|=1<<(page&7);
+          u_int *ht_bin=hash_table[((vaddr>>16)^vaddr)&0xFFFF];
+          if(ht_bin[0]==vaddr) {
+            ht_bin[1]=(int)head->addr; // Replace existing entry
+          }
+          else
+          {
+            ht_bin[3]=ht_bin[1];
+            ht_bin[2]=ht_bin[0];
+            ht_bin[1]=(int)head->addr;
+            ht_bin[0]=vaddr;
+          }
+          return head->addr;
+        }
+      }
+    }
+    head=head->next;
+  }
+
+  int r=new_recompile_block((vaddr&0xFFFFFFF8)+1);
+  if(r==0) return dynamic_linker_ds(src, vaddr);
+  // Execute in unmapped page, generate pagefault exception
+  g_cp0_regs[CP0_STATUS_REG]|=2;
+  g_cp0_regs[CP0_CAUSE_REG]=0x80000008;
+  g_cp0_regs[CP0_EPC_REG]=(vaddr&0xFFFFFFF8)-4;
+  g_cp0_regs[CP0_BADVADDR_REG]=vaddr&0xFFFFFFF8;
+  g_cp0_regs[CP0_CONTEXT_REG]=(g_cp0_regs[CP0_CONTEXT_REG]&0xFF80000F)|((g_cp0_regs[CP0_BADVADDR_REG]>>9)&0x007FFFF0);
+  g_cp0_regs[CP0_ENTRYHI_REG]=g_cp0_regs[CP0_BADVADDR_REG]&0xFFFFE000;
+  return get_addr_ht(0x80000000);
+}
+
 static void *kill_pointer(void *stub)
 {
-  int *i_ptr=*((int **)(stub+6));
+  int *i_ptr=*((int **)((int)stub+6));
   *i_ptr=(int)stub-(int)i_ptr-4;
   return i_ptr;
 }
 static int get_pointer(void *stub)
 {
-  int *i_ptr=*((int **)(stub+6));
+  int *i_ptr=*((int **)((int)stub+6));
   return *i_ptr+(int)i_ptr+4;
 }
 
@@ -713,6 +881,10 @@ static void multdiv_alloc_x86(struct regstat *current,int i)
     }
     else // 64-bit
     {
+      current->u&=~(1LL<<HIREG);
+      current->u&=~(1LL<<LOREG);
+      current->uu&=~(1LL<<HIREG);
+      current->uu&=~(1LL<<LOREG);
       alloc_x86_reg(current,i,HIREG|64,EDX);
       alloc_x86_reg(current,i,HIREG,EAX);
       alloc_reg64(current,i,rs1[i]);
@@ -722,6 +894,7 @@ static void multdiv_alloc_x86(struct regstat *current,int i)
       current->is32&=~(1LL<<LOREG);
       dirty_reg(current,HIREG);
       dirty_reg(current,LOREG);
+      minimum_free_regs[i]=HOST_REGS;
     }
   }
   else
@@ -741,7 +914,7 @@ static void multdiv_alloc_x86(struct regstat *current,int i)
 
 /* Assembler */
 
-static const char const regname[8][4] = {
+static const char regname[8][4] = {
  "eax",
  "ecx",
  "edx",
@@ -1774,13 +1947,13 @@ static void emit_callreg(u_int r)
   output_byte(0xFF);
   output_modrm(3,r,2);
 }
-/*static void emit_jmpreg(u_int r)
+static void emit_jmpreg(u_int r)
 {
   assem_debug("jmp *%%%s",regname[r]);
   assert(r<8);
   output_byte(0xFF);
   output_modrm(3,r,4);
-}*/
+}
 static void emit_jmpmem_indexed(u_int addr,u_int r)
 {
   assem_debug("jmp *%x(%%%s)",addr,regname[r]);
@@ -2600,8 +2773,8 @@ static void emit_extjump2(int addr, int target, int linker)
     assert(*ptr==0xe8||*ptr==0xe9);
     addr++;
   }
-  emit_movimm(target,EAX);
-  emit_movimm(addr,EBX);
+  emit_pushimm(target);
+  emit_pushimm(addr);
   //assert(addr>=0x7000000&&addr<0x7FFFFFF);
   //assert((target>=0x80000000&&target<0x80800000)||(target>0xA4000000&&target<0xA4001000));
 //DEBUG >
@@ -2614,16 +2787,18 @@ static void emit_extjump2(int addr, int target, int linker)
   emit_writeword(ECX,(int)&last_count);
 #endif
 //DEBUG <
-  emit_jmp(linker);
+  emit_call(linker);
+  emit_addimm(ESP,8,ESP);
+  emit_jmpreg(EAX);
 }
 
 static void emit_extjump(int addr, int target)
 {
-  emit_extjump2(addr, target, (int)dyna_linker);
+  emit_extjump2(addr, target, (int)dynamic_linker);
 }
 static void emit_extjump_ds(int addr, int target)
 {
-  emit_extjump2(addr, target, (int)dyna_linker_ds);
+  emit_extjump2(addr, target, (int)dynamic_linker_ds);
 }
 
 static void do_readstub(int n)
@@ -2698,7 +2873,7 @@ static void do_readstub(int n)
   // but not doing so causes random crashes...
   emit_readword((int)&g_cp0_regs[CP0_COUNT_REG],HOST_CCREG);
   emit_readword((int)&next_interupt,ECX);
-  emit_addimm(HOST_CCREG,-CLOCK_DIVIDER*(stubs[n][6]+1),HOST_CCREG);
+  emit_addimm(HOST_CCREG,-(int)CLOCK_DIVIDER*(stubs[n][6]+1),HOST_CCREG);
   emit_sub(HOST_CCREG,ECX,HOST_CCREG);
   emit_writeword(ECX,(int)&last_count);
   emit_storereg(CCREG,HOST_CCREG);
@@ -2793,7 +2968,7 @@ static void inline_readstub(int type, int i, u_int addr, signed char regmap[], i
   // but not doing so causes random crashes...
   emit_readword((int)&g_cp0_regs[CP0_COUNT_REG],HOST_CCREG);
   emit_readword((int)&next_interupt,ECX);
-  emit_addimm(HOST_CCREG,-CLOCK_DIVIDER*(adj+1),HOST_CCREG);
+  emit_addimm(HOST_CCREG,-(int)CLOCK_DIVIDER*(adj+1),HOST_CCREG);
   emit_sub(HOST_CCREG,ECX,HOST_CCREG);
   emit_writeword(ECX,(int)&last_count);
   emit_storereg(CCREG,HOST_CCREG);
@@ -2857,12 +3032,12 @@ static void do_writestub(int n)
   if(type==STOREB_STUB)
     emit_writebyte(rt,(int)&cpu_byte);
   if(type==STOREH_STUB)
-    emit_writehword(rt,(int)&hword);
+    emit_writehword(rt,(int)&cpu_hword);
   if(type==STOREW_STUB)
-    emit_writeword(rt,(int)&word);
+    emit_writeword(rt,(int)&cpu_word);
   if(type==STORED_STUB) {
-    emit_writeword(rt,(int)&dword);
-    emit_writeword(r?rth:rt,(int)&dword+4);
+    emit_writeword(rt,(int)&cpu_dword);
+    emit_writeword(r?rth:rt,(int)&cpu_dword+4);
   }
   emit_pusha();
   ds=i_regs!=&regs[i];
@@ -2899,7 +3074,7 @@ static void do_writestub(int n)
   emit_callreg(addr);
   emit_readword((int)&g_cp0_regs[CP0_COUNT_REG],HOST_CCREG);
   emit_readword((int)&next_interupt,ECX);
-  emit_addimm(HOST_CCREG,-CLOCK_DIVIDER*(stubs[n][6]+1),HOST_CCREG);
+  emit_addimm(HOST_CCREG,-(int)CLOCK_DIVIDER*(stubs[n][6]+1),HOST_CCREG);
   emit_sub(HOST_CCREG,ECX,HOST_CCREG);
   emit_writeword(ECX,(int)&last_count);
   emit_storereg(CCREG,HOST_CCREG);
@@ -2931,12 +3106,12 @@ static void inline_writestub(int type, int i, u_int addr, signed char regmap[], 
   if(type==STOREB_STUB)
     emit_writebyte(rt,(int)&cpu_byte);
   if(type==STOREH_STUB)
-    emit_writehword(rt,(int)&hword);
+    emit_writehword(rt,(int)&cpu_hword);
   if(type==STOREW_STUB)
-    emit_writeword(rt,(int)&word);
+    emit_writeword(rt,(int)&cpu_word);
   if(type==STORED_STUB) {
-    emit_writeword(rt,(int)&dword);
-    emit_writeword(target?rth:rt,(int)&dword+4);
+    emit_writeword(rt,(int)&cpu_dword);
+    emit_writeword(target?rth:rt,(int)&cpu_dword+4);
   }
   emit_pusha();
   if((signed int)addr>=(signed int)0xC0000000) {
@@ -2982,7 +3157,7 @@ static void inline_writestub(int type, int i, u_int addr, signed char regmap[], 
   emit_call(((u_int *)ftable)[addr>>16]);
   emit_readword((int)&g_cp0_regs[CP0_COUNT_REG],HOST_CCREG);
   emit_readword((int)&next_interupt,ECX);
-  emit_addimm(HOST_CCREG,-CLOCK_DIVIDER*(adj+1),HOST_CCREG);
+  emit_addimm(HOST_CCREG,-(int)CLOCK_DIVIDER*(adj+1),HOST_CCREG);
   emit_sub(HOST_CCREG,ECX,HOST_CCREG);
   emit_writeword(ECX,(int)&last_count);
   emit_storereg(CCREG,HOST_CCREG);
@@ -3506,7 +3681,7 @@ static void cop0_assemble(int i,struct regstat *i_regs)
     if(copr==9||copr==11||copr==12) {
       emit_readword((int)&g_cp0_regs[CP0_COUNT_REG],HOST_CCREG);
       emit_readword((int)&next_interupt,ECX);
-      emit_addimm(HOST_CCREG,-CLOCK_DIVIDER*ccadj[i],HOST_CCREG);
+      emit_addimm(HOST_CCREG,-(int)CLOCK_DIVIDER*ccadj[i],HOST_CCREG);
       emit_sub(HOST_CCREG,ECX,HOST_CCREG);
       emit_writeword(ECX,(int)&last_count);
       emit_storereg(CCREG,HOST_CCREG);
@@ -3707,10 +3882,10 @@ static void fconv_assemble_x86(int i,struct regstat *i_regs)
   }
   if((source[i]&0x3f)<0x10) {
     emit_fnstcw_stack();
-    if((source[i]&3)==0) emit_fldcw((int)&round_mode); //DebugMessage(M64MSG_VERBOSE, "round");
-    if((source[i]&3)==1) emit_fldcw((int)&trunc_mode); //DebugMessage(M64MSG_VERBOSE, "trunc");
-    if((source[i]&3)==2) emit_fldcw((int)&ceil_mode); //DebugMessage(M64MSG_VERBOSE, "ceil");
-    if((source[i]&3)==3) emit_fldcw((int)&floor_mode); //DebugMessage(M64MSG_VERBOSE, "floor");
+    if((source[i]&3)==0) emit_fldcw((int)&rounding_modes[0]); //DebugMessage(M64MSG_VERBOSE, "round");
+    if((source[i]&3)==1) emit_fldcw((int)&rounding_modes[1]); //DebugMessage(M64MSG_VERBOSE, "trunc");
+    if((source[i]&3)==2) emit_fldcw((int)&rounding_modes[2]); //DebugMessage(M64MSG_VERBOSE, "ceil");
+    if((source[i]&3)==3) emit_fldcw((int)&rounding_modes[3]); //DebugMessage(M64MSG_VERBOSE, "floor");
   }
   if((source[i]&0x3f)==0x24||(source[i]&0x3c)==0x0c) { // cvt_w_*
     if(opcode2[i]!=0x10||((source[i]>>11)&0x1f)!=((source[i]>>6)&0x1f))
@@ -4216,27 +4391,55 @@ static void multdiv_assemble_x86(int i,struct regstat *i_regs)
         char m1l=get_reg(i_regs->regmap,rs1[i]);
         char m2h=get_reg(i_regs->regmap,rs2[i]|64);
         char m2l=get_reg(i_regs->regmap,rs2[i]);
-        assert(m1h>=0);
-        assert(m2h>=0);
-        assert(m1l>=0);
-        assert(m2l>=0);
-        emit_pushreg(m2h);
-        emit_pushreg(m2l);
-        emit_pushreg(m1h);
-        emit_pushreg(m1l);
-        emit_call((int)&mult64);
-        emit_popreg(m1l);
-        emit_popreg(m1h);
-        emit_popreg(m2l);
-        emit_popreg(m2h);
-        char hih=get_reg(i_regs->regmap,HIREG|64);
-        char hil=get_reg(i_regs->regmap,HIREG);
-        if(hih>=0) emit_loadreg(HIREG|64,hih);
-        if(hil>=0) emit_loadreg(HIREG,hil);
-        char loh=get_reg(i_regs->regmap,LOREG|64);
-        char lol=get_reg(i_regs->regmap,LOREG);
-        if(loh>=0) emit_loadreg(LOREG|64,loh);
-        if(lol>=0) emit_loadreg(LOREG,lol);
+        char temp=get_reg(i_regs->regmap,-1);
+
+        assert((m1h>=0)&&(m1h!=EAX)&&(m1h!=EDX));
+        assert((m2h>=0)&&(m2h!=EAX)&&(m2h!=EDX));
+        assert((m1l>=0)&&(m1l!=EAX)&&(m1l!=EDX));
+        assert((m2l>=0)&&(m2l!=EAX)&&(m2l!=EDX));
+        assert((temp>=0)&&(temp!=EAX)&&(temp!=EDX));
+
+        // Multiply m2l*m1l
+        emit_mov(m1l,EAX);
+        emit_mul(m2l);
+        emit_storereg(LOREG,EAX);
+        emit_mov(EDX,temp);
+
+        // Multiply m2l*m1h
+        emit_mov(m1h,EAX);
+        emit_mul(m2l);
+        emit_add(EAX,temp,temp);
+        emit_adcimm(0,EDX);
+        emit_storereg(HIREG,EDX);
+
+        // Multiply m2h*m1l
+        emit_mov(m1l,EAX);
+        emit_mul(m2h);
+        emit_add(EAX,temp,temp);
+        emit_adcimm(0,EDX);
+        emit_storereg(LOREG|64,temp);
+        emit_mov(EDX,temp);
+
+        // Multiply m2h*m1h
+        emit_mov(m1h,EAX);
+        emit_mul(m2h);
+        emit_add(EAX,temp,EAX);
+        emit_adcimm(0,EDX);
+        emit_loadreg(HIREG,temp);
+        emit_add(EAX,temp,EAX);
+        emit_adcimm(0,EDX);
+
+        // If m1<0 subtract m2 from the high 64bit part
+        emit_testimm(m1h,0x80000000);
+        emit_jeq((int)out+10);
+        emit_sub(EAX,m2l,EAX);
+        emit_sbb(m2h,EDX);
+
+        // If m2<0 subtract m1 from the high 64bit part
+        emit_testimm(m2h,0x80000000);
+        emit_jeq((int)out+10);
+        emit_sub(EAX,m1l,EAX);
+        emit_sbb(m1h,EDX);
       }
       if(opcode2[i]==0x1D) // DMULTU
       {
@@ -4245,54 +4448,42 @@ static void multdiv_assemble_x86(int i,struct regstat *i_regs)
         char m2h=get_reg(i_regs->regmap,rs2[i]|64);
         char m2l=get_reg(i_regs->regmap,rs2[i]);
         char temp=get_reg(i_regs->regmap,-1);
-        assert(m1h>=0);
-        assert(m2h>=0);
-        assert(m1l>=0);
-        assert(m2l>=0);
-        assert(temp>=0);
+
+        assert((m1h>=0)&&(m1h!=EAX)&&(m1h!=EDX));
+        assert((m2h>=0)&&(m2h!=EAX)&&(m2h!=EDX));
+        assert((m1l>=0)&&(m1l!=EAX)&&(m1l!=EDX));
+        assert((m2l>=0)&&(m2l!=EAX)&&(m2l!=EDX));
+        assert((temp>=0)&&(temp!=EAX)&&(temp!=EDX));
+
+        // Multiply m2l*m1l
         emit_mov(m1l,EAX);
         emit_mul(m2l);
         emit_storereg(LOREG,EAX);
         emit_mov(EDX,temp);
+
+        // Multiply m2l*m1h
         emit_mov(m1h,EAX);
         emit_mul(m2l);
         emit_add(EAX,temp,temp);
         emit_adcimm(0,EDX);
         emit_storereg(HIREG,EDX);
-        emit_mov(m2h,EAX);
-        emit_mul(m1l);
+
+        // Multiply m2h*m1l
+        emit_mov(m1l, EAX);
+        emit_mul(m2h);
         emit_add(EAX,temp,temp);
         emit_adcimm(0,EDX);
         emit_storereg(LOREG|64,temp);
         emit_mov(EDX,temp);
-        emit_mov(m2h,EAX);
-        emit_mul(m1h);
+
+        // Multiply m2h*m1h
+        emit_mov(m1h,EAX);
+        emit_mul(m2h);
         emit_add(EAX,temp,EAX);
+        emit_adcimm(0, EDX);
         emit_loadreg(HIREG,temp);
-        emit_adcimm(0,EDX);
         emit_add(EAX,temp,EAX);
         emit_adcimm(0,EDX);
-        // DEBUG
-        /*
-        emit_pushreg(m2h);
-        emit_pushreg(m2l);
-        emit_pushreg(m1h);
-        emit_pushreg(m1l);
-        emit_call((int)&multu64);
-        emit_popreg(m1l);
-        emit_popreg(m1h);
-        emit_popreg(m2l);
-        emit_popreg(m2h);
-        char hih=get_reg(i_regs->regmap,HIREG|64);
-        char hil=get_reg(i_regs->regmap,HIREG);
-        if(hih>=0) emit_loadreg(HIREG|64,hih);  // DEBUG
-        if(hil>=0) emit_loadreg(HIREG,hil);  // DEBUG
-        */
-        // Shouldn't be necessary
-        //char loh=get_reg(i_regs->regmap,LOREG|64);
-        //char lol=get_reg(i_regs->regmap,LOREG);
-        //if(loh>=0) emit_loadreg(LOREG|64,loh);
-        //if(lol>=0) emit_loadreg(LOREG,lol);
       }
       if(opcode2[i]==0x1E) // DDIV
       {

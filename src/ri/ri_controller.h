@@ -22,6 +22,7 @@
 #ifndef M64P_RI_RI_CONTROLLER_H
 #define M64P_RI_RI_CONTROLLER_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "rdram.h"
@@ -46,7 +47,7 @@ struct ri_controller
     struct rdram rdram;
 };
 
-static inline uint32_t ri_reg(uint32_t address)
+static uint32_t ri_reg(uint32_t address)
 {
     return (address & 0xffff) >> 2;
 }

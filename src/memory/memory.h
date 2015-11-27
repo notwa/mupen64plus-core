@@ -33,10 +33,10 @@
 #define write_hword_in_memory() writememh[address >>16]()
 #define write_dword_in_memory() writememd[address >>16]()
 
-extern unsigned int address, word;
-extern unsigned char cpu_byte;
-extern unsigned short hword;
-extern unsigned long long dword, *rdword;
+extern uint32_t address, cpu_word;
+extern uint8_t cpu_byte;
+extern uint16_t cpu_hword;
+extern uint64_t cpu_dword, *rdword;
 
 extern void (*readmem[0x10000])(void);
 extern void (*readmemb[0x10000])(void);
@@ -48,7 +48,7 @@ extern void (*writememh[0x10000])(void);
 extern void (*writememd[0x10000])(void);
 
 #ifndef M64P_BIG_ENDIAN
-#if defined(__GNUC__) && (__GNUC__ > 4  || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2))
+#if defined(__GNUC__) && (__GNUC__ > 4  || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))
 #define sl(x) __builtin_bswap32(x)
 #else
 #define sl(mot) \
@@ -72,7 +72,7 @@ extern void (*writememd[0x10000])(void);
 
 #endif
 
-static inline void masked_write(uint32_t* dst, uint32_t value, uint32_t mask)
+static void masked_write(uint32_t* dst, uint32_t value, uint32_t mask)
 {
     *dst = (*dst & ~mask) | (value & mask);
 }
@@ -111,7 +111,7 @@ void write_rdramFBd(void);
 /* Returns a pointer to a block of contiguous memory
  * Can access RDRAM, SP_DMEM, SP_IMEM and ROM, using TLB if necessary
  * Useful for getting fast access to a zone with executable code. */
-unsigned int *fast_mem_access(unsigned int address);
+uint32_t *fast_mem_access(uint32_t address);
 
 #ifdef DBG
 void activate_memory_break_read(uint32_t address);

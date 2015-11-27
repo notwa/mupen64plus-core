@@ -27,8 +27,8 @@
 #include "fb.h"
 
 struct r4300_core;
-struct rsp_core;
 struct ri_controller;
+struct rsp_core;
 
 enum dpc_registers
 {
@@ -65,12 +65,12 @@ struct rdp_core
     struct ri_controller* ri;
 };
 
-static inline uint32_t dpc_reg(uint32_t address)
+static uint32_t dpc_reg(uint32_t address)
 {
     return (address & 0xffff) >> 2;
 }
 
-static inline uint32_t dps_reg(uint32_t address)
+static uint32_t dps_reg(uint32_t address)
 {
     return (address & 0xffff) >> 2;
 }

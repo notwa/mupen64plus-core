@@ -21,15 +21,17 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "flashram.h"
-#include "pi_controller.h"
-
-#include "api/m64p_types.h"
-#include "api/callbacks.h"
-#include "memory/memory.h"
-#include "r4300/r4300.h"
-#include "ri/ri_controller.h"
 
 #include <string.h>
+
+#include "api/callbacks.h"
+#include "api/m64p_types.h"
+#include "memory/memory.h"
+#include "pi_controller.h"
+#include "ri/ri_controller.h"
+
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 
 
 static void flashram_command(struct pi_controller* pi, uint32_t command)
@@ -78,7 +80,6 @@ static void flashram_command(struct pi_controller* pi, uint32_t command)
             break;
         default:
             DebugMessage(M64MSG_WARNING, "unknown flashram command with mode:%x", flashram->mode);
-            stop=1;
             break;
         }
         flashram->mode = FLASHRAM_MODE_NOPES;
@@ -92,7 +93,7 @@ static void flashram_command(struct pi_controller* pi, uint32_t command)
         flashram->status = 0x11118004f0000000LL;
         break;
     default:
-        DebugMessage(M64MSG_WARNING, "unknown flashram command: %x", command);
+        DebugMessage(M64MSG_WARNING, "unknown flashram command: %" PRIX32, command);
         break;
     }
 }
@@ -173,7 +174,6 @@ void dma_read_flashram(struct pi_controller* pi)
         break;
     default:
         DebugMessage(M64MSG_WARNING, "unknown dma_read_flashram: %x", flashram->mode);
-        stop=1;
         break;
     }
 }
@@ -189,7 +189,6 @@ void dma_write_flashram(struct pi_controller* pi)
         break;
     default:
         DebugMessage(M64MSG_ERROR, "unknown dma_write_flashram: %x", flashram->mode);
-        stop=1;
         break;
     }
 }

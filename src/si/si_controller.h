@@ -20,7 +20,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #ifndef SI_SI_CONTROLLER_H
-#define Si_SI_CONTROLLER_H
+#define SI_SI_CONTROLLER_H
 
 #include <stdint.h>
 
@@ -51,7 +51,7 @@ struct si_controller
     struct ri_controller* ri;
 };
 
-static inline uint32_t si_reg(uint32_t address)
+static uint32_t si_reg(uint32_t address)
 {
     return (address & 0xffff) >> 2;
 }

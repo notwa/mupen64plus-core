@@ -22,29 +22,31 @@
 #define M64P_CORE_PROTOTYPES 1
 
 #include "interupt.h"
-#include "cached_interp.h"
-#include "cp0.h"
-#include "exception.h"
-#include "new_dynarec/new_dynarec.h"
-#include "r4300.h"
-#include "r4300_core.h"
-#include "reset.h"
+
+#include <SDL.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "ai/ai_controller.h"
-#include "api/m64p_types.h"
 #include "api/callbacks.h"
+#include "api/m64p_types.h"
+#include "cached_interp.h"
+#include "cp0_private.h"
+#include "exception.h"
 #include "main/main.h"
 #include "main/savestates.h"
+#include "mi_controller.h"
+#include "new_dynarec/new_dynarec.h"
 #include "pi/pi_controller.h"
+#include "r4300.h"
+#include "r4300_core.h"
 #include "rdp/rdp_core.h"
+#include "recomp.h"
+#include "reset.h"
 #include "rsp/rsp_core.h"
 #include "si/si_controller.h"
 #include "vi/vi_controller.h"
-
-
-#include <string.h>
-
-#include <SDL.h>
 
 int interupt_unsafe_state = 0;
 
@@ -131,16 +133,16 @@ static int SPECIAL_done = 0;
 
 static int before_event(unsigned int evt1, unsigned int evt2, int type2)
 {
-    if(evt1 - g_cp0_regs[CP0_COUNT_REG] < 0x80000000)
+    if(evt1 - g_cp0_regs[CP0_COUNT_REG] < UINT32_C(0x80000000))
     {
-        if(evt2 - g_cp0_regs[CP0_COUNT_REG] < 0x80000000)
+        if(evt2 - g_cp0_regs[CP0_COUNT_REG] < UINT32_C(0x80000000))
         {
             if((evt1 - g_cp0_regs[CP0_COUNT_REG]) < (evt2 - g_cp0_regs[CP0_COUNT_REG])) return 1;
             else return 0;
         }
         else
         {
-            if((g_cp0_regs[CP0_COUNT_REG] - evt2) < 0x10000000)
+            if((g_cp0_regs[CP0_COUNT_REG] - evt2) < UINT32_C(0x10000000))
             {
                 switch(type2)
                 {
@@ -171,7 +173,7 @@ void add_interupt_event_count(int type, unsigned int count)
 
     special = (type == SPECIAL_INT);
    
-    if(g_cp0_regs[CP0_COUNT_REG] > 0x80000000) SPECIAL_done = 0;
+    if(g_cp0_regs[CP0_COUNT_REG] > UINT32_C(0x80000000)) SPECIAL_done = 0;
    
     if (get_event(type)) {
         DebugMessage(M64MSG_WARNING, "two events of type 0x%x in interrupt queue", type);
@@ -237,7 +239,7 @@ static void remove_interupt_event(void)
 
     next_interupt = (q.first != NULL
          && (q.first->data.count > g_cp0_regs[CP0_COUNT_REG]
-         || (g_cp0_regs[CP0_COUNT_REG] - q.first->data.count) < 0x80000000))
+         || (g_cp0_regs[CP0_COUNT_REG] - q.first->data.count) < UINT32_C(0x80000000)))
         ? q.first->data.count
         : 0;
 }
@@ -354,11 +356,11 @@ void check_interupt(void)
     struct node* event;
 
     if (g_r4300.mi.regs[MI_INTR_REG] & g_r4300.mi.regs[MI_INTR_MASK_REG])
-        g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] | 0x400) & 0xFFFFFF83;
+        g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] | UINT32_C(0x400)) & UINT32_C(0xFFFFFF83);
     else
-        g_cp0_regs[CP0_CAUSE_REG] &= ~0x400;
-    if ((g_cp0_regs[CP0_STATUS_REG] & 7) != 1) return;
-    if (g_cp0_regs[CP0_STATUS_REG] & g_cp0_regs[CP0_CAUSE_REG] & 0xFF00)
+        g_cp0_regs[CP0_CAUSE_REG] &= ~UINT32_C(0x400);
+    if ((g_cp0_regs[CP0_STATUS_REG] & UINT32_C(7)) != 1) return;
+    if (g_cp0_regs[CP0_STATUS_REG] & g_cp0_regs[CP0_CAUSE_REG] & UINT32_C(0xFF00))
     {
         event = alloc_node(&q.pool);
 
@@ -391,8 +393,8 @@ static void wrapped_exception_general(void)
     if (r4300emu == CORE_DYNAREC) {
         g_cp0_regs[CP0_EPC_REG] = pcaddr;
         pcaddr = 0x80000180;
-        g_cp0_regs[CP0_STATUS_REG] |= 2;
-        g_cp0_regs[CP0_CAUSE_REG] &= 0x7FFFFFFF;
+        g_cp0_regs[CP0_STATUS_REG] |= UINT32_C(2);
+        g_cp0_regs[CP0_CAUSE_REG] &= UINT32_C(0x7FFFFFFF);
         pending_exception=1;
     } else {
         exception_general();
@@ -404,12 +406,12 @@ static void wrapped_exception_general(void)
 
 void raise_maskable_interrupt(uint32_t cause)
 {
-    g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] | cause) & 0xffffff83;
+    g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] | cause) & UINT32_C(0xffffff83);
 
-    if (!(g_cp0_regs[CP0_STATUS_REG] & g_cp0_regs[CP0_CAUSE_REG] & 0xff00))
+    if (!(g_cp0_regs[CP0_STATUS_REG] & g_cp0_regs[CP0_CAUSE_REG] & UINT32_C(0xff00)))
         return;
 
-    if ((g_cp0_regs[CP0_STATUS_REG] & 7) != 1)
+    if ((g_cp0_regs[CP0_STATUS_REG] & UINT32_C(7)) != UINT32_C(1))
         return;
 
     wrapped_exception_general();
@@ -417,7 +419,7 @@ void raise_maskable_interrupt(uint32_t cause)
 
 static void special_int_handler(void)
 {
-    if (g_cp0_regs[CP0_COUNT_REG] > 0x10000000)
+    if (g_cp0_regs[CP0_COUNT_REG] > UINT32_C(0x10000000))
         return;
 
 
@@ -433,7 +435,7 @@ static void compare_int_handler(void)
     add_interupt_event_count(COMPARE_INT, g_cp0_regs[CP0_COMPARE_REG]);
     g_cp0_regs[CP0_COUNT_REG]-=count_per_op;
 
-    raise_maskable_interrupt(0x8000);
+    raise_maskable_interrupt(UINT32_C(0x8000));
 }
 
 static void hw2_int_handler(void)
@@ -441,8 +443,8 @@ static void hw2_int_handler(void)
     // Hardware Interrupt 2 -- remove interrupt event from queue
     remove_interupt_event();
 
-    g_cp0_regs[CP0_STATUS_REG] = (g_cp0_regs[CP0_STATUS_REG] & ~0x00380000) | 0x1000;
-    g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] | 0x1000) & 0xffffff83;
+    g_cp0_regs[CP0_STATUS_REG] = (g_cp0_regs[CP0_STATUS_REG] & ~UINT32_C(0x00380000)) | UINT32_C(0x1000);
+    g_cp0_regs[CP0_CAUSE_REG] = (g_cp0_regs[CP0_CAUSE_REG] | UINT32_C(0x1000)) & UINT32_C(0xffffff83);
 
     wrapped_exception_general();
 }
@@ -452,7 +454,7 @@ static void nmi_int_handler(void)
     // Non Maskable Interrupt -- remove interrupt event from queue
     remove_interupt_event();
     // setup r4300 Status flags: reset TS and SR, set BEV, ERL, and SR
-    g_cp0_regs[CP0_STATUS_REG] = (g_cp0_regs[CP0_STATUS_REG] & ~0x00380000) | 0x00500004;
+    g_cp0_regs[CP0_STATUS_REG] = (g_cp0_regs[CP0_STATUS_REG] & ~UINT32_C(0x00380000)) | UINT32_C(0x00500004);
     g_cp0_regs[CP0_CAUSE_REG]  = 0x00000000;
     // simulate the soft reset code which would run from the PIF ROM
     r4300_reset_soft();
@@ -479,15 +481,13 @@ static void nmi_int_handler(void)
     delay_slot = 0;
     dyna_interp = 0;
     // set next instruction address to reset vector
-    last_addr = 0xa4000040;
-    generic_jump_to(0xa4000040);
+    last_addr = UINT32_C(0xa4000040);
+    generic_jump_to(UINT32_C(0xa4000040));
 }
 
 
 void gen_interupt(void)
 {
-    unsigned int ai_event;
-
     if (stop == 1)
     {
         g_gs_vi_counter = 0; // debug
@@ -512,11 +512,11 @@ void gen_interupt(void)
    
     if (skip_jump)
     {
-        unsigned int dest = skip_jump;
+        uint32_t dest = skip_jump;
         skip_jump = 0;
 
         next_interupt = (q.first->data.count > g_cp0_regs[CP0_COUNT_REG]
-                || (g_cp0_regs[CP0_COUNT_REG] - q.first->data.count) < 0x80000000)
+                || (g_cp0_regs[CP0_COUNT_REG] - q.first->data.count) < UINT32_C(0x80000000))
             ? q.first->data.count
             : 0;
 
@@ -556,9 +556,8 @@ void gen_interupt(void)
             break;
     
         case AI_INT:
-            ai_event = q.first->data.count;
             remove_interupt_event();
-            ai_end_of_dma_event(&g_ai, ai_event);
+            ai_end_of_dma_event(&g_ai);
             break;
 
         case SP_INT:

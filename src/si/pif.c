@@ -20,17 +20,21 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "pif.h"
+
+#include <stdint.h>
+#include <string.h>
+
+#include "api/callbacks.h"
+#include "api/m64p_plugin.h"
+#include "api/m64p_types.h"
+#include "memory/memory.h"
 #include "n64_cic_nus_6105.h"
+#include "plugin/plugin.h"
+#include "r4300/r4300_core.h"
 #include "si_controller.h"
 
-#include "api/m64p_types.h"
-#include "api/callbacks.h"
-#include "memory/memory.h"
-#include "plugin/plugin.h"
-#include "r4300/cp0.h"
-#include "r4300/interupt.h"
-
-#include <string.h>
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 
 //#define DEBUG_PIF
 #ifdef DEBUG_PIF
@@ -38,7 +42,7 @@ void print_pif(struct pif* pif)
 {
     int i;
     for (i=0; i<(64/8); i++)
-        DebugMessage(M64MSG_INFO, "%x %x %x %x | %x %x %x %x",
+        DebugMessage(M64MSG_INFO, "%02" PRIX8 " %02" PRIX8 " %02" PRIX8 " %02" PRIX8 " | %02" PRIX8 " %02" PRIX8 " %02" PRIX8 " %02" PRIX8,
                      pif->ram[i*8+0], pif->ram[i*8+1],pif->ram[i*8+2], pif->ram[i*8+3],
                      pif->ram[i*8+4], pif->ram[i*8+5],pif->ram[i*8+6], pif->ram[i*8+7]);
 }
@@ -55,7 +59,7 @@ static void process_cart_command(struct pif* pif, uint8_t* cmd)
     case PIF_CMD_AF_RTC_READ: af_rtc_read_command(&pif->af_rtc, cmd); break;
     case PIF_CMD_AF_RTC_WRITE: af_rtc_write_command(&pif->af_rtc, cmd); break;
     default:
-        DebugMessage(M64MSG_ERROR, "unknown PIF command: %02x", cmd[2]);
+        DebugMessage(M64MSG_ERROR, "unknown PIF command: %02" PRIX8, cmd[2]);
     }
 }
 
@@ -71,7 +75,7 @@ int read_pif_ram(void* opaque, uint32_t address, uint32_t* value)
 
     if (addr >= PIF_RAM_SIZE)
     {
-        DebugMessage(M64MSG_ERROR, "Invalid PIF address: %08x", address);
+        DebugMessage(M64MSG_ERROR, "Invalid PIF address: %08" PRIX32, address);
         *value = 0;
         return -1;
     }
@@ -89,7 +93,7 @@ int write_pif_ram(void* opaque, uint32_t address, uint32_t value, uint32_t mask)
 
     if (addr >= PIF_RAM_SIZE)
     {
-        DebugMessage(M64MSG_ERROR, "Invalid PIF address: %08x", address);
+        DebugMessage(M64MSG_ERROR, "Invalid PIF address: %08" PRIX32, address);
         return -1;
     }
 
@@ -100,7 +104,7 @@ int write_pif_ram(void* opaque, uint32_t address, uint32_t value, uint32_t mask)
         if (si->pif.ram[0x3f] == 0x08)
         {
             si->pif.ram[0x3f] = 0;
-            update_count();
+            cp0_update_count();
             add_interupt_event(SI_INT, /*0x100*/0x900);
         }
         else
@@ -152,7 +156,7 @@ void update_pif_write(struct si_controller* si)
             pif->ram[0x3F] = 0;
             break;
         default:
-            DebugMessage(M64MSG_ERROR, "error in update_pif_write(): %x", pif->ram[0x3F]);
+            DebugMessage(M64MSG_ERROR, "error in update_pif_write(): %" PRIX8, pif->ram[0x3F]);
         }
         return;
     }

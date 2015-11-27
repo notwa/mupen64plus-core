@@ -21,17 +21,14 @@
 
 #include "si_controller.h"
 
-#include "api/m64p_types.h"
+#include <string.h>
+
 #include "api/callbacks.h"
+#include "api/m64p_types.h"
 #include "main/main.h"
 #include "memory/memory.h"
-#include "r4300/cp0.h"
-#include "r4300/interupt.h"
-#include "r4300/r4300.h"
 #include "r4300/r4300_core.h"
 #include "ri/ri_controller.h"
-
-#include <string.h>
 
 
 static void dma_si_write(struct si_controller* si)
@@ -41,7 +38,7 @@ static void dma_si_write(struct si_controller* si)
     if (si->regs[SI_PIF_ADDR_WR64B_REG] != 0x1FC007C0)
     {
         DebugMessage(M64MSG_ERROR, "dma_si_write(): unknown SI use");
-        stop=1;
+        return;
     }
 
     for (i = 0; i < PIF_RAM_SIZE; i += 4)
@@ -50,7 +47,7 @@ static void dma_si_write(struct si_controller* si)
     }
 
     update_pif_write(si);
-    update_count();
+    cp0_update_count();
 
     if (g_delay_si) {
         add_interupt_event(SI_INT, /*0x100*/0x900);
@@ -67,7 +64,7 @@ static void dma_si_read(struct si_controller* si)
     if (si->regs[SI_PIF_ADDR_RD64B_REG] != 0x1FC007C0)
     {
         DebugMessage(M64MSG_ERROR, "dma_si_read(): unknown SI use");
-        stop=1;
+        return;
     }
 
     update_pif_read(si);
@@ -77,7 +74,7 @@ static void dma_si_read(struct si_controller* si)
         si->ri->rdram.dram[(si->regs[SI_DRAM_ADDR_REG]+i)/4] = sl(*(uint32_t*)(&si->pif.ram[i]));
     }
 
-    update_count();
+    cp0_update_count();
 
     if (g_delay_si) {
         add_interupt_event(SI_INT, /*0x100*/0x900);
