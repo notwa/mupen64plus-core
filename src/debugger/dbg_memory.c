@@ -66,7 +66,7 @@ static void process_opcode_out(void *strm, const char *fmt, ...){
   va_list ap;
   va_start(ap, fmt);
   char *arg;
-  char buff[256];
+  char buff[2048];
 
   if(num_decoded==0)
     {
