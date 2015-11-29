@@ -2,6 +2,7 @@
 #include "lua.h"
 #include "main/main.h"
 #include "main/savestates.h"
+#include "r4300/r4300.h"
 
 enum {
     EMU_FIELD_STATE,
@@ -196,6 +197,12 @@ static int emu_meta_newindex(lua_State *L) {
 }
 
 
+static int emu_reload_code(lua_State *L) {
+    invalidate_r4300_cached_code(0, 0);
+    return 0;
+}
+
+
 static int emu_run(lua_State *L) {
     return m64p_lua_return_errcode(L,
         CoreDoCommand(M64CMD_EXECUTE, 0, NULL));
@@ -329,6 +336,7 @@ void m64p_lua_load_libs(lua_State *L) {
         {"resume",             emu_resume},
         {"registerCallback",   emu_register_callback},
         {"unregisterCallback", emu_unregister_callback},
+        {"reloadCode",         emu_reload_code},
         {NULL, NULL}
     };
     luaL_newlib(L, funcs_m64p); //-1: m64p
