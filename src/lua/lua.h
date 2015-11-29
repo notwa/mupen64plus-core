@@ -24,27 +24,27 @@ void m64p_lua_load_libs(lua_State *L);
 #define LUA_PUSH(L, type, val) lua_push ##type((L), (val))
 
 #define LUA_SET_FIELD(L, idx, name, type, val) do {                  \
-	lua_push ##type((L), (val));                                     \
-	lua_setfield((L), (idx) < 0 ? ((idx)-1) : (idx), (name));        \
+    lua_push ##type((L), (val));                                     \
+    lua_setfield((L), (idx) < 0 ? ((idx)-1) : (idx), (name));        \
 } while(0)
 
 #define LUA_GET_FIELD(L, idx, name, type, dest) do {                 \
-	lua_getfield((L), (idx), (name));                                \
-	if(lua_is ##type((L), -1)) (dest) = lua_to ##type((L), -1);      \
-	else return luaL_error((L),                                      \
-		"Invalid value for field '%s' (expected %s, got %s)", #name, \
-		#type, luaL_typename(L, -1));                                \
-	lua_pop((L), 1);                                                 \
+    lua_getfield((L), (idx), (name));                                \
+    if(lua_is ##type((L), -1)) (dest) = lua_to ##type((L), -1);      \
+    else return luaL_error((L),                                      \
+        "Invalid value for field '%s' (expected %s, got %s)", #name, \
+        #type, luaL_typename(L, -1));                                \
+    lua_pop((L), 1);                                                 \
 } while(0)
 
 #define LUA_OPT_FIELD(L, idx, name, type, dest, def) do {            \
-	lua_getfield((L), (idx), (name));                                \
-	if(lua_isnil((L), -1)) (dest) = (def);                           \
-	else if(lua_is ##type((L), -1)) (dest) = lua_to ##type((L), -1); \
-	else return luaL_error((L),                                      \
-		"Invalid value for field '%s' (expected %s, got %s)", name,  \
-		#type, luaL_typename(L, -1));                                \
-	lua_pop((L), 1);                                                 \
+    lua_getfield((L), (idx), (name));                                \
+    if(lua_isnil((L), -1)) (dest) = (def);                           \
+    else if(lua_is ##type((L), -1)) (dest) = lua_to ##type((L), -1); \
+    else return luaL_error((L),                                      \
+        "Invalid value for field '%s' (expected %s, got %s)", name,  \
+        #type, luaL_typename(L, -1));                                \
+    lua_pop((L), 1);                                                 \
 } while(0)
 
 int m64p_lua_map_enum(lua_State *L, int start, int end, const char **names,
